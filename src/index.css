@@ -1,0 +1,23 @@
+@import 'tailwindcss';
+
+/*
+ * Brand color tokens: primary + secondary are a frontend-only theme
+ * setting (see useThemeStore), overwritten at runtime from localStorage
+ * by useApplyBranding — never fetched from the API. Outlet name/logo are
+ * still API-driven via GET /tenant/config; only color moved client-side.
+ */
+:root {
+  --brand-primary: #9333ea; /* fallback purple, used only until useThemeStore hydrates */
+  --brand-primary-contrast: #ffffff;
+  --brand-secondary: #f97316; /* fallback orange */
+}
+
+@theme {
+  --color-brand: var(--brand-primary);
+  --color-brand-contrast: var(--brand-primary-contrast);
+  --color-brand-secondary: var(--brand-secondary);
+}
+
+body {
+  @apply bg-gray-100 text-gray-900 antialiased;
+}

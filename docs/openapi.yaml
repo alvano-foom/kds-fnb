@@ -1,0 +1,253 @@
+openapi: 3.1.0
+info:
+  title: Kitchen Display System API
+  version: 4.0.0-draft
+  description: >
+    Contract between the KDS frontend and the Odoo 18 backend. The frontend
+    is built and mocked against this spec (see src/api/mocks); once the
+    backend implements it, only VITE_API_BASE_URL / VITE_WS_URL change.
+
+    v4 change: brand color removed from the API entirely. TenantConfig is
+    now name/logo only — color is a frontend-only preference the browser
+    stores in localStorage (like a light/dark theme choice), set via color
+    pickers on the Config screen, never fetched from or sent to the backend.
+
+    v3 change: Point of Sale scoping removed — the board is scoped by
+    company_id only. TenantConfig collapsed to a single `color` field
+    (was primary_color/secondary_color) — that field is now removed too,
+    see v4 above.
+
+    v2 change: kitchen_state lives on sale.order.line, not sale.order — an
+    order can have some lines cooking while others are already served. The
+    board's unit of work is therefore an order LINE, tagged with the
+    parent order's client_order_ref as a table number.
+servers:
+  - url: /api
+    description: Same-origin default (mocked in dev)
+  - url: https://{tenant}.kds.example.com/api
+    variables:
+      tenant:
+        default: demo
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate with Odoo credentials, receive JWT pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Authenticated
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Invalid credentials (generic message, does not disclose which field was wrong)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/refresh:
+    post:
+      summary: Exchange a refresh token for a new access/refresh pair
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '200':
+          description: New token pair
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthResponse' }
+        '401':
+          description: Refresh token invalid/expired — frontend signs the user out
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /auth/logout:
+    post:
+      summary: Revoke a refresh token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refresh_token]
+              properties:
+                refresh_token: { type: string }
+      responses:
+        '204': { description: Logged out }
+
+  /tenant/config:
+    get:
+      summary: Public per-tenant branding, resolved from Host header or ?tenant=
+      security: []
+      responses:
+        '200':
+          description: Tenant branding — outlet name and logo, both configurable (never hardcoded in the frontend). Brand color is intentionally NOT part of this response — see TenantConfig schema note.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TenantConfig' }
+
+  /companies:
+    get:
+      summary: Companies the authenticated user may access
+      responses:
+        '200':
+          description: List of companies (must be filtered server-side by res.users.company_ids — never trust a client-supplied company id elsewhere in the API without checking membership in this set)
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Company' }
+
+  /order-lines:
+    get:
+      summary: Open sale.order.line records for a company, one card per line
+      description: >
+        Backend queries sale.order.line joined to its parent sale.order (for
+        company_id, client_order_ref, name, customer) and returns the
+        flattened OrderLineCard shape directly — the frontend never
+        reconstructs a nested order. Scoped by company_id only.
+      parameters:
+        - name: company_id
+          in: query
+          required: true
+          schema: { type: string }
+        - name: since
+          in: query
+          required: false
+          description: ISO timestamp; return only lines updated after this (used for reconnect reconciliation)
+          schema: { type: string, format: date-time }
+      responses:
+        '200':
+          description: Order lines currently open for this company
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/OrderLineCard' }
+
+  /order-lines/{lineId}/state:
+    patch:
+      summary: Move an order line to a new kitchen state (drag-and-drop target)
+      parameters:
+        - name: lineId
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [kitchen_state]
+              properties:
+                kitchen_state: { $ref: '#/components/schemas/KitchenState' }
+      responses:
+        '200':
+          description: Updated line (also broadcast over WebSocket as order_line.updated)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrderLineCard' }
+        '404':
+          description: Order line not found
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: Invalid state transition (backend-enforced business rule, e.g. served -> pending blocked)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    KitchenState:
+      type: string
+      enum: [pending, cooking, ready, served]
+
+    AuthResponse:
+      type: object
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        expires_in: { type: integer, description: seconds until access_token expires }
+        user:
+          type: object
+          properties:
+            id: { type: string }
+            email: { type: string }
+            name: { type: string }
+
+    TenantConfig:
+      type: object
+      description: >
+        The frontend has no hardcoded outlet name or logo anywhere —
+        both come from this response. Brand color is deliberately absent:
+        it is a frontend-only preference (primary + secondary) that the
+        browser persists to localStorage, set from color pickers on the
+        Config screen — the backend never stores or serves it.
+      properties:
+        name: { type: string, description: "Outlet/store name, e.g. \"FOOM Outlet\"." }
+        logo_url: { type: string, description: "Shown on the login screen and in the header when present; falls back to a plain color block when absent." }
+
+    Company:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        logo_url: { type: string }
+
+    OrderLineCard:
+      type: object
+      description: One sale.order.line, flattened with the fields the board needs from its parent sale.order.
+      properties:
+        id: { type: string, description: sale.order.line id }
+        order_id: { type: string }
+        order_name: { type: string, example: SO0231 }
+        table_number: { type: string, description: "sale.order.client_order_ref, reused as a table tag" }
+        customer_name: { type: string }
+        product_name: { type: string }
+        qty: { type: number }
+        note: { type: string }
+        kitchen_state: { $ref: '#/components/schemas/KitchenState' }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
