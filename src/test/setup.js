@@ -45,6 +45,8 @@ afterEach(() => {
     error: null,
     device: null,
     characteristic: null,
+    autoPrint: false,
+    testPrints: [],
   })
 })
 

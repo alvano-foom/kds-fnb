@@ -1,28 +1,49 @@
 import { useState } from 'react'
 import { usePrinterStore } from '../../store/printerStore'
-import { isBluetoothSupported, pairPrinter, printTestTicket } from '../../lib/printer'
+import {
+  connectTestPrinter,
+  formatReceiptPreview,
+  isBluetoothSupported,
+  isTestPrinterCharacteristic,
+  pairPrinter,
+  printTestTicket,
+  TEST_CARD,
+} from '../../lib/printer'
 import { Button } from '../atoms/Button'
 
 /**
- * Pairs a BLE thermal printer once so OrderCard's Print button can write
- * tickets straight to it instead of going through window.print() — see
- * src/lib/printer.js for the platform constraints (BLE only, never
- * classic/SPP Bluetooth; Chrome/Edge only; needs a real button click).
+ * Three independent things live here:
+ *  - Print trigger: manual (Print button on each card) vs. automatic
+ *    (fires the moment a card enters "pending", same event as the voice
+ *    announcement — see PendingOrderAlerts.jsx). Works no matter what's
+ *    connected below, or if nothing is: with no printer, it falls back to
+ *    the browser's print dialog, same as a manual Print click.
+ *  - Bluetooth pairing: pairs a real BLE thermal printer once so tickets
+ *    go straight to it, silently, no popup — see src/lib/printer.js for
+ *    the platform constraints (BLE only, never classic/SPP Bluetooth;
+ *    Chrome/Edge only; needs a real button click).
+ *  - Test Printer: a software-only stand-in for when there's no real
+ *    printer in the room. Logs what would have printed right here — also
+ *    silent, no popup — so the print pipeline (including auto-print) can
+ *    be verified on its own before real hardware is involved.
  */
 export function PrinterConfig() {
-  const { status, deviceName, serviceLabel, error, setConnecting, setConnected, setError, disconnect } =
-    usePrinterStore()
+  const {
+    status,
+    deviceName,
+    serviceLabel,
+    error,
+    autoPrint,
+    testPrints,
+    setAutoPrint,
+    setConnecting,
+    setConnected,
+    setError,
+    disconnect,
+    clearTestPrints,
+  } = usePrinterStore()
   const [testing, setTesting] = useState(false)
-
-  if (!isBluetoothSupported()) {
-    return (
-      <p className="text-sm text-gray-500">
-        This browser doesn't support Bluetooth printing (Web Bluetooth needs Chrome or Edge, on
-        desktop or Android — not Safari/iOS). The Print button on each card still works via your
-        system's regular print dialog.
-      </p>
-    )
-  }
+  const usingTestPrinter = status === 'connected' && isTestPrinterCharacteristic(usePrinterStore.getState().characteristic)
 
   async function handlePair() {
     setConnecting()
@@ -41,10 +62,19 @@ export function PrinterConfig() {
     }
   }
 
+  function handleUseTestPrinter() {
+    setConnected(connectTestPrinter())
+  }
+
   async function handleTestPrint() {
     setTesting(true)
     try {
-      await printTestTicket(usePrinterStore.getState().characteristic)
+      const { characteristic } = usePrinterStore.getState()
+      if (isTestPrinterCharacteristic(characteristic)) {
+        usePrinterStore.getState().logTestPrint(TEST_CARD, formatReceiptPreview(TEST_CARD))
+      } else {
+        await printTestTicket(characteristic)
+      }
     } catch (err) {
       setError(err?.message || 'Test print failed — check the printer is on and in range.')
     } finally {
@@ -53,12 +83,23 @@ export function PrinterConfig() {
   }
 
   return (
-    <div className="space-y-3">
-      <p className="text-xs text-gray-400">
-        Pair a Bluetooth Low Energy (BLE) thermal printer once here to print tickets directly from
-        each card's Print button — no print dialog, no OS driver. Classic Bluetooth (SPP)
-        printers can't be reached from a browser at all and won't show up below.
-      </p>
+    <div className="space-y-5">
+      <div>
+        <label className="flex cursor-pointer items-start gap-2.5">
+          <input
+            type="checkbox"
+            checked={autoPrint}
+            onChange={(e) => setAutoPrint(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-gray-300 text-brand focus:ring-brand/20"
+          />
+          <span className="text-sm font-medium text-gray-700">Automatically print each new order</span>
+        </label>
+        <p className="mt-1.5 pl-6 text-xs text-gray-400">
+          {autoPrint
+            ? 'A ticket prints the moment a card enters Pending — no need to click Print. You can still reprint any card manually too.'
+            : 'Off by default: tickets only print when someone clicks a card\'s Print button.'}
+        </p>
+      </div>
 
       {status === 'connected' ? (
         <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
@@ -71,9 +112,34 @@ export function PrinterConfig() {
           </button>
         </div>
       ) : (
-        <Button type="button" onClick={handlePair} disabled={status === 'connecting'}>
-          {status === 'connecting' ? 'Connecting…' : deviceName ? `Reconnect to ${deviceName}` : 'Pair Printer'}
-        </Button>
+        <div className="space-y-2">
+          {isBluetoothSupported() ? (
+            <>
+              <p className="text-xs text-gray-400">
+                Pair a Bluetooth Low Energy (BLE) thermal printer once here to print tickets
+                directly — no print dialog, no OS driver. Classic Bluetooth (SPP) printers can't be
+                reached from a browser at all and won't show up in the chooser.
+              </p>
+              <Button type="button" onClick={handlePair} disabled={status === 'connecting'}>
+                {status === 'connecting' ? 'Connecting…' : deviceName ? `Reconnect to ${deviceName}` : 'Pair Printer'}
+              </Button>
+            </>
+          ) : (
+            <p className="text-sm text-gray-500">
+              This browser doesn't support Bluetooth printing (Web Bluetooth needs Chrome or Edge,
+              on desktop or Android — not Safari/iOS).
+            </p>
+          )}
+          <div>
+            <Button type="button" variant="secondary" onClick={handleUseTestPrinter}>
+              Use Test Printer
+            </Button>
+            <p className="mt-1.5 text-xs text-gray-400">
+              No hardware needed — logs each ticket below instead of printing it, so you can check
+              the whole flow (including auto-print) works before pairing a real printer.
+            </p>
+          </div>
+        </div>
       )}
 
       {status === 'error' && error && (
@@ -84,6 +150,34 @@ export function PrinterConfig() {
         <Button type="button" variant="secondary" onClick={handleTestPrint} disabled={testing}>
           {testing ? 'Printing…' : 'Send test print'}
         </Button>
+      )}
+
+      {usingTestPrinter && (
+        <div>
+          <div className="mb-1.5 flex items-center justify-between">
+            <span className="text-xs font-semibold uppercase tracking-wide text-gray-500">Test Printer Output</span>
+            {testPrints.length > 0 && (
+              <button type="button" onClick={clearTestPrints} className="text-xs font-medium text-gray-400 underline">
+                Clear
+              </button>
+            )}
+          </div>
+          {testPrints.length === 0 ? (
+            <p className="text-xs text-gray-400">
+              Nothing printed yet — click Print on a card, turn on auto-print, or use "Send test
+              print" above.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {testPrints.map((entry) => (
+                <li key={entry.id} className="rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+                  <p className="mb-1 text-[11px] text-gray-400">{new Date(entry.printedAt).toLocaleTimeString()}</p>
+                  <pre className="whitespace-pre-wrap font-mono text-xs text-gray-700">{entry.preview}</pre>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   )

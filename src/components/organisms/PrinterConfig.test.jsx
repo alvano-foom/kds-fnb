@@ -78,4 +78,65 @@ describe('PrinterConfig', () => {
 
     expect(printer.printTestTicket).toHaveBeenCalledWith(characteristic)
   })
+
+  it('defaults to manual printing, and switching the toggle on persists autoPrint', async () => {
+    const user = userEvent.setup()
+    render(<PrinterConfig />)
+
+    const toggle = screen.getByRole('checkbox', { name: /automatically print each new order/i })
+    expect(toggle).not.toBeChecked()
+    expect(screen.getByText(/tickets only print when someone clicks/i)).toBeInTheDocument()
+
+    await user.click(toggle)
+
+    expect(usePrinterStore.getState().autoPrint).toBe(true)
+    expect(screen.getByText(/no need to click print/i)).toBeInTheDocument()
+  })
+
+  it('offers the auto-print toggle even without Web Bluetooth support, since it falls back to the print dialog', () => {
+    render(<PrinterConfig />)
+    expect(screen.getByRole('checkbox', { name: /automatically print each new order/i })).toBeInTheDocument()
+  })
+
+  describe('Test Printer', () => {
+    it('is offered even when the browser has no Web Bluetooth support at all', () => {
+      render(<PrinterConfig />)
+      expect(screen.getByRole('button', { name: /use test printer/i })).toBeInTheDocument()
+    })
+
+    it('connects instantly (no device chooser, no async pairing) and shows an empty log', async () => {
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /use test printer/i }))
+
+      expect(screen.getByText(/connected: test printer/i)).toBeInTheDocument()
+      expect(screen.getByText(/test printer output/i)).toBeInTheDocument()
+      expect(screen.getByText(/nothing printed yet/i)).toBeInTheDocument()
+    })
+
+    it('logs a ticket, with no popup and no real Bluetooth write, via "Send test print"', async () => {
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+      await user.click(screen.getByRole('button', { name: /use test printer/i }))
+
+      await user.click(screen.getByRole('button', { name: /send test print/i }))
+
+      expect(printer.printTestTicket).not.toHaveBeenCalled()
+      expect(screen.getByText(/bluetooth connection ok/i)).toBeInTheDocument()
+    })
+
+    it('clears the log', async () => {
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+      await user.click(screen.getByRole('button', { name: /use test printer/i }))
+      await user.click(screen.getByRole('button', { name: /send test print/i }))
+      expect(screen.getByText(/bluetooth connection ok/i)).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /^clear$/i }))
+
+      expect(screen.queryByText(/bluetooth connection ok/i)).not.toBeInTheDocument()
+      expect(screen.getByText(/nothing printed yet/i)).toBeInTheDocument()
+    })
+  })
 })

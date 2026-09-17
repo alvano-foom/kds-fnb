@@ -165,13 +165,45 @@ export function printViaBluetooth(characteristic, card) {
   return writeBytes(characteristic, buildEscPosReceipt(card))
 }
 
+export const TEST_CARD = {
+  order_name: 'TEST PRINT',
+  table_number: '0',
+  qty: 1,
+  product_name: 'Bluetooth connection OK',
+  customer_name: 'KDS Config',
+}
+
 /** Used by the "Send test print" button in PrinterConfig — same path as a real ticket, so a successful test means real tickets will work too. */
 export function printTestTicket(characteristic) {
-  return printViaBluetooth(characteristic, {
-    order_name: 'TEST PRINT',
-    table_number: '0',
-    qty: 1,
-    product_name: 'Bluetooth connection OK',
-    customer_name: 'KDS Config',
-  })
+  return printViaBluetooth(characteristic, TEST_CARD)
+}
+
+// A software-only stand-in for a real printer: verifies the whole
+// auto-print/manual-print pipeline (including the PendingOrderAlerts
+// wiring) end to end without needing real BLE hardware in the room, and
+// — unlike the print-dialog fallback — never opens any popup, since it
+// doesn't call window.print() at all. Selected via "Use Test Printer" in
+// PrinterConfig; printCard.js checks isTestPrinterCharacteristic() and
+// routes here instead of attempting a real GATT write.
+const TEST_PRINTER = Symbol('test-printer')
+
+export function connectTestPrinter() {
+  return {
+    device: { name: 'Test Printer (simulated)' },
+    characteristic: TEST_PRINTER,
+    serviceLabel: 'Software target — no hardware, no popup',
+  }
+}
+
+export function isTestPrinterCharacteristic(characteristic) {
+  return characteristic === TEST_PRINTER
+}
+
+/** Same layout as buildEscPosReceipt, as plain readable lines instead of ESC/POS bytes — what the test printer "prints" to its on-screen log. */
+export function formatReceiptPreview(card) {
+  const lines = [card.order_name || '', `TABLE ${card.table_number ?? '-'}`, '--------------------------------']
+  lines.push(`${card.qty}x ${card.product_name}`)
+  if (card.note) lines.push(`  Note: ${card.note}`)
+  lines.push('--------------------------------', `Customer: ${card.customer_name ?? '-'}`, `Printed: ${new Date().toLocaleString()}`)
+  return lines.join('\n')
 }

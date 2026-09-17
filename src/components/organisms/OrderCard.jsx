@@ -2,8 +2,7 @@ import { memo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { OrderMeta } from '../molecules/OrderMeta'
 import { Badge } from '../atoms/Badge'
-import { printReceipt } from '../../lib/receipt'
-import { printViaBluetooth } from '../../lib/printer'
+import { printCard } from '../../lib/printCard'
 import { usePrinterStore } from '../../store/printerStore'
 
 const PrinterIcon = (props) => (
@@ -55,14 +54,7 @@ function OrderCardImpl({ card }) {
   const printerCharacteristic = usePrinterStore((s) => s.characteristic)
 
   function handlePrint() {
-    if (printerStatus === 'connected' && printerCharacteristic) {
-      // Bluetooth write failing (printer off, out of range, disconnected
-      // mid-print) shouldn't lose the ticket — fall back to the print
-      // dialog so the kitchen still gets it.
-      printViaBluetooth(printerCharacteristic, card).catch(() => printReceipt(card))
-    } else {
-      printReceipt(card)
-    }
+    printCard(card, { status: printerStatus, characteristic: printerCharacteristic })
   }
 
   // While dragging, this element stays put as a dashed placeholder marking

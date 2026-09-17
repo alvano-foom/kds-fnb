@@ -1,13 +1,11 @@
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { OrderCard } from './OrderCard'
-import { printReceipt } from '../../lib/receipt'
-import { printViaBluetooth } from '../../lib/printer'
+import { printCard } from '../../lib/printCard'
 import { usePrinterStore } from '../../store/printerStore'
 
-vi.mock('../../lib/receipt', () => ({ printReceipt: vi.fn() }))
-vi.mock('../../lib/printer', () => ({ printViaBluetooth: vi.fn() }))
+vi.mock('../../lib/printCard', () => ({ printCard: vi.fn() }))
 
 const card = {
   id: 'l1',
@@ -32,34 +30,20 @@ describe('OrderCard', () => {
     // match would find both elements.
     await user.click(screen.getByRole('button', { name: /^print$/i }))
 
-    expect(printReceipt).toHaveBeenCalledWith(card)
-    expect(printViaBluetooth).not.toHaveBeenCalled()
+    expect(printCard).toHaveBeenCalledWith(card, { status: 'idle', characteristic: null })
     // The card itself is still in its normal (non-dragging) state — the
     // click didn't get interpreted as a drag start.
     expect(screen.getByText('SO0231')).toBeVisible()
   })
 
-  it('prints via the paired Bluetooth printer instead, once one is connected', async () => {
+  it('passes the currently-connected printer along, so printCard can route to it', async () => {
     const characteristic = {}
     usePrinterStore.setState({ status: 'connected', characteristic })
-    printViaBluetooth.mockResolvedValue(undefined)
     const user = userEvent.setup()
     render(<OrderCard card={card} />)
 
     await user.click(screen.getByRole('button', { name: /^print$/i }))
 
-    expect(printViaBluetooth).toHaveBeenCalledWith(characteristic, card)
-    expect(printReceipt).not.toHaveBeenCalled()
-  })
-
-  it('falls back to the print dialog if the Bluetooth write fails, so the ticket still prints', async () => {
-    usePrinterStore.setState({ status: 'connected', characteristic: {} })
-    printViaBluetooth.mockRejectedValue(new Error('printer out of range'))
-    const user = userEvent.setup()
-    render(<OrderCard card={card} />)
-
-    await user.click(screen.getByRole('button', { name: /^print$/i }))
-
-    await waitFor(() => expect(printReceipt).toHaveBeenCalledWith(card))
+    expect(printCard).toHaveBeenCalledWith(card, { status: 'connected', characteristic })
   })
 })
