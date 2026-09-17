@@ -1,0 +1,404 @@
+<title>KDS API Contract</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+
+  :root {
+    --bg: #f4f5f2;
+    --surface: #ffffff;
+    --surface-2: #ebede8;
+    --border: #dee1d9;
+    --ink: #1b1f1b;
+    --ink-muted: #5d6359;
+    --ink-faint: #8b9086;
+    --accent: #0e7a5f;
+    --accent-soft: #e2f2ec;
+    --get: #1d5fb8;
+    --get-soft: #e4edfb;
+    --post: #0e7a3f;
+    --post-soft: #e3f4e9;
+    --patch: #b6650a;
+    --patch-soft: #fbead9;
+    --must: #a13d2f;
+    --must-soft: #fbe8e2;
+    --code-bg: #14171a;
+    --code-ink: #d9dfd6;
+    --code-key: #7fc7a8;
+    --code-str: #e0b96a;
+    --code-com: #7d8b82;
+    --shadow: 0 1px 2px rgba(20, 25, 20, 0.06), 0 6px 20px -8px rgba(20, 25, 20, 0.12);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #14171a; --surface: #1b1f1e; --surface-2: #222726; --border: #313832;
+      --ink: #e9ece6; --ink-muted: #a4ab9f; --ink-faint: #767d72;
+      --accent: #4bc79a; --accent-soft: #163229;
+      --get: #6fa6ec; --get-soft: #17232f;
+      --post: #63c98c; --post-soft: #16281e;
+      --patch: #e0a15a; --patch-soft: #2c2216;
+      --must: #e2897a; --must-soft: #2c1a17;
+      --code-bg: #0d0f10; --code-ink: #d9dfd6; --code-key: #7fc7a8; --code-str: #e0b96a; --code-com: #6b776e;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #14171a; --surface: #1b1f1e; --surface-2: #222726; --border: #313832;
+    --ink: #e9ece6; --ink-muted: #a4ab9f; --ink-faint: #767d72;
+    --accent: #4bc79a; --accent-soft: #163229;
+    --get: #6fa6ec; --get-soft: #17232f;
+    --post: #63c98c; --post-soft: #16281e;
+    --patch: #e0a15a; --patch-soft: #2c2216;
+    --must: #e2897a; --must-soft: #2c1a17;
+    --code-bg: #0d0f10; --code-ink: #d9dfd6; --code-key: #7fc7a8; --code-str: #e0b96a; --code-com: #6b776e;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 24px -8px rgba(0,0,0,.5);
+  }
+
+  * { box-sizing: border-box; }
+  body { background: var(--bg); color: var(--ink); font-family: 'IBM Plex Sans', system-ui, sans-serif; margin: 0; padding-inline: 20px; line-height: 1.55; }
+  code, pre, .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; }
+  a { color: var(--accent); }
+
+  .topbar {
+    position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20;
+    margin-inline: -20px; padding: 14px 20px;
+    background: color-mix(in srgb, var(--bg) 88%, transparent);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 18px; overflow-x: auto;
+  }
+  .topbar .brand { font-weight: 700; font-size: 0.95rem; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  .topbar .brand .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+  .topbar nav { display: flex; gap: 4px; white-space: nowrap; }
+  .topbar nav a { color: var(--ink-muted); text-decoration: none; font-size: 0.8rem; padding: 6px 9px; border-radius: 6px; }
+  .topbar nav a:hover { color: var(--ink); background: var(--surface-2); }
+
+  main { max-width: 800px; margin: 0 auto; padding-block: 28px 64px; }
+
+  h1 { font-size: 1.55rem; margin: 0 0 6px; text-wrap: balance; letter-spacing: -0.01em; }
+  h2 { font-size: 1.15rem; margin: 0 0 12px; padding-top: 4px; scroll-margin-top: 72px; text-wrap: balance; }
+  h3 { font-size: 0.92rem; margin: 20px 0 8px; color: var(--ink); }
+  p { color: var(--ink-muted); margin: 0 0 12px; max-width: 66ch; }
+  .lede { color: var(--ink-muted); font-size: 0.96rem; max-width: 62ch; }
+
+  section { margin-top: 46px; }
+  section > .section-head { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .section-num { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--ink-faint); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; }
+
+  .banner { background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 10px; padding: 14px 16px; margin-block: 18px 8px; font-size: 0.87rem; }
+  .banner strong { color: var(--accent); }
+  .banner.warn { background: var(--must-soft); border-color: color-mix(in srgb, var(--must) 35%, var(--border)); }
+  .banner.warn strong { color: var(--must); }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 10px 20px; font-size: 0.82rem; color: var(--ink-muted); margin: 14px 0 6px; }
+  .legend .item { display: flex; align-items: center; gap: 7px; }
+
+  .env-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 14px; }
+  @media (max-width: 620px) { .env-grid { grid-template-columns: 1fr; } }
+  .env-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; box-shadow: var(--shadow); }
+  .env-card .k { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-faint); }
+  .env-card code { display: block; margin-top: 4px; font-size: 0.8rem; word-break: break-all; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  .table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: 10px; }
+  th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  thead th { background: var(--surface-2); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-faint); font-weight: 600; }
+  tbody tr:last-child td { border-bottom: none; }
+  tbody tr:hover { background: var(--surface-2); }
+  td code, th code { font-size: 0.82em; }
+
+  .badge { display: inline-flex; align-items: center; font-family: 'IBM Plex Mono', monospace; font-weight: 600; font-size: 0.7rem; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.02em; white-space: nowrap; }
+  .badge.get { background: var(--get-soft); color: var(--get); }
+  .badge.post { background: var(--post-soft); color: var(--post); }
+  .badge.patch { background: var(--patch-soft); color: var(--patch); }
+  .badge.auth { background: var(--surface-2); color: var(--ink-muted); font-weight: 500; }
+  .badge.noauth { background: var(--accent-soft); color: var(--accent); font-weight: 500; }
+  .badge.must { background: var(--must-soft); color: var(--must); }
+  .badge.ref { background: var(--surface-2); color: var(--ink-faint); font-weight: 500; }
+
+  .ticket { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 18px; overflow: hidden; }
+  .ticket-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px dashed var(--border); flex-wrap: wrap; }
+  .ticket-head .path { font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; font-weight: 500; }
+  .ticket-body { padding: 15px 16px 17px; }
+  .ticket-body > p:last-child, .ticket-body > *:last-child { margin-bottom: 0; }
+  .ticket-tags { margin-left: auto; display: flex; gap: 6px; }
+
+  .step-list { list-style: none; margin: 8px 0 14px; padding: 0; counter-reset: step; }
+  .step-list li { counter-increment: step; padding: 6px 0 6px 26px; position: relative; font-size: 0.85rem; color: var(--ink); border-top: 1px solid var(--border); }
+  .step-list li:first-child { border-top: none; }
+  .step-list li::before { content: counter(step); position: absolute; left: 0; top: 6px; width: 18px; height: 18px; border-radius: 5px; background: var(--surface-2); color: var(--ink-faint); font-family: 'IBM Plex Mono', monospace; font-size: 0.68rem; display: flex; align-items: center; justify-content: center; }
+  .step-list code { font-size: 0.86em; }
+
+  details.schema { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+  details.schema > summary { cursor: pointer; padding: 8px 12px; font-size: 0.77rem; font-weight: 600; color: var(--ink-muted); list-style: none; display: flex; align-items: center; gap: 6px; }
+  details.schema > summary::-webkit-details-marker { display: none; }
+  details.schema > summary::before { content: "▸"; font-size: 0.7em; }
+  details.schema[open] > summary::before { content: "▾"; }
+  details.schema .schema-inner { padding: 0 12px 12px; }
+
+  pre { background: var(--code-bg); color: var(--code-ink); border-radius: 8px; padding: 12px 14px; overflow-x: auto; font-size: 0.79rem; margin: 0; line-height: 1.6; }
+  pre .k { color: var(--code-key); }
+  pre .s { color: var(--code-str); }
+  pre .c { color: var(--code-com); }
+
+  .checklist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .checklist li { display: flex; gap: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 11px 14px; font-size: 0.86rem; box-shadow: var(--shadow); }
+  .checklist .num { font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; color: var(--accent); background: var(--accent-soft); border-radius: 6px; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center; flex: none; }
+  .checklist strong { color: var(--ink); }
+  .checklist span { color: var(--ink-muted); }
+
+  .shape-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 620px) { .shape-grid { grid-template-columns: 1fr; } }
+  .shape-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; box-shadow: var(--shadow); }
+  .shape-card h3 { margin-top: 0; font-family: 'IBM Plex Mono', monospace; font-size: 0.86rem; }
+  .field-list { list-style: none; margin: 8px 0 0; padding: 0; font-size: 0.82rem; }
+  .field-list li { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; border-top: 1px solid var(--border); }
+  .field-list li:first-child { border-top: none; }
+  .field-list .fname { font-family: 'IBM Plex Mono', monospace; color: var(--ink); }
+  .field-list .ftype { color: var(--ink-faint); font-size: 0.76rem; text-align: right; }
+
+  .removed { text-decoration: line-through; opacity: 0.55; }
+  .not-enforced { border-left: 3px solid var(--must); background: var(--must-soft); border-radius: 0 8px 8px 0; padding: 10px 12px; font-size: 0.83rem; margin-top: 10px; }
+  .not-enforced strong { color: var(--must); }
+
+  footer { margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--ink-faint); font-size: 0.78rem; }
+</style>
+
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> KDS API Contract</div>
+  <nav>
+    <a href="#overview">Overview</a>
+    <a href="#auth">Auth</a>
+    <a href="#tenant">Tenant</a>
+    <a href="#companies">Companies</a>
+    <a href="#order-lines">Order Lines</a>
+    <a href="#shapes">Shapes</a>
+    <a href="#websocket">WebSocket</a>
+    <a href="#gaps">Gaps to close</a>
+    <a href="#cutover">Cutover</a>
+  </nav>
+</div>
+
+<main>
+
+  <section id="overview">
+    <h1>Kitchen Display System — API Contract</h1>
+    <p class="lede">This is an implementation spec for the engineer building the backend, written directly off the working mock at <code>src/api/mocks/handlers.js</code> and <code>fixtures.js</code>. It is not product documentation — it exists so that once the real API returns exactly these shapes and status codes, the frontend's cutover is <a href="#cutover">two environment variables</a> and nothing else.</p>
+
+    <div class="legend">
+      <span class="item"><span class="badge must">MUST</span> part of the contract — the frontend depends on this exact shape or status code</span>
+      <span class="item"><span class="badge ref">REF</span> how the mock happens to do it — implement it your own way</span>
+    </div>
+
+    <div class="table-wrap" style="margin-top:10px">
+      <table>
+        <thead><tr><th style="width:66px">Method</th><th>Path</th><th style="width:56px">Auth</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td><span class="badge post">POST</span></td><td><code>/auth/login</code></td><td><span class="badge noauth">no</span></td><td>email + password → JWT access/refresh pair</td></tr>
+          <tr><td><span class="badge post">POST</span></td><td><code>/auth/refresh</code></td><td><span class="badge noauth">no</span></td><td>refresh_token → new pair</td></tr>
+          <tr><td><span class="badge post">POST</span></td><td><code>/auth/logout</code></td><td><span class="badge auth">yes</span></td><td>revoke a refresh_token</td></tr>
+          <tr><td><span class="badge get">GET</span></td><td><code>/tenant/config</code></td><td><span class="badge noauth">no</span></td><td>outlet name + logo only</td></tr>
+          <tr><td><span class="badge get">GET</span></td><td><code>/companies</code></td><td><span class="badge auth">yes</span></td><td>companies the logged-in user may access</td></tr>
+          <tr><td><span class="badge get">GET</span></td><td><code>/order-lines</code></td><td><span class="badge auth">yes</span></td><td>open order lines for <code>?company_id</code>, optional <code>?since=</code></td></tr>
+          <tr><td><span class="badge patch">PATCH</span></td><td><code>/order-lines/{id}/state</code></td><td><span class="badge auth">yes</span></td><td>set <code>kitchen_state</code> — the drag-and-drop target</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p style="margin-top:12px"><span class="badge must">MUST</span> Every authenticated request sends <code>Authorization: Bearer &lt;access_token&gt;</code>. Every error response, on every endpoint, is <code>{ "error": { "code": string, "message": string } }</code> — <code>src/api/client.js</code> reads <code>body.error.code</code> / <code>body.error.message</code> unconditionally and falls back to <code>"unknown"</code> / the HTTP status text if that shape is missing, so an error body in a different shape is silently swallowed, not surfaced.</p>
+
+    <div class="banner">
+      <strong>v4 — brand color is out of the API entirely.</strong> <code>/tenant/config</code> now returns only <code>name</code> and <code>logo_url</code>. Primary/secondary color is a frontend-only preference stored in the browser's <code>localStorage</code>. Build nothing for color.
+    </div>
+  </section>
+
+  <section id="auth">
+    <div class="section-head"><span class="section-num">01</span><h2>Auth</h2></div>
+    <p><span class="badge must">MUST</span> Custom JWT, not Odoo's session cookie — chosen for a cross-origin SPA. <span class="badge ref">REF</span> The mock issues debug tokens (base64 of <code>{type, userId, exp}</code>, unsigned) with a 60s access TTL and a 24h refresh TTL, purely to exercise the refresh flow during local dev — issue real signed JWTs with whatever TTL you choose (15 min access is a reasonable default); only the response envelope below is contractual.</p>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge post">POST</span><span class="path">/auth/login</span><div class="ticket-tags"><span class="badge noauth">no auth</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge must">MUST</span> Request body: <code>{ email: string, password: string }</code>.</p>
+        <ol class="step-list">
+          <li>Compare credentials. Match → <code>200</code> with the body below.</li>
+          <li>No match (either field) → <code>401</code>, code <code>invalid_credentials</code>. <span class="badge must">MUST</span> the message must not reveal which field was wrong.</li>
+        </ol>
+        <details class="schema" open><summary>200 response</summary>
+          <div class="schema-inner"><pre>{
+  <span class="k">"access_token"</span>: <span class="s">"..."</span>,
+  <span class="k">"refresh_token"</span>: <span class="s">"..."</span>,
+  <span class="k">"expires_in"</span>: 900,                 <span class="c">// seconds</span>
+  <span class="k">"user"</span>: { <span class="k">"id"</span>: <span class="s">"u1"</span>, <span class="k">"email"</span>: <span class="s">"staff@kawahputih.test"</span>, <span class="k">"name"</span>: <span class="s">"Kawah Putih Staff"</span> }
+}</pre></div>
+        </details>
+        <p style="margin-top:10px"><span class="badge must">MUST</span> A <code>401</code> here is terminal — the frontend calls this with <code>retryOn401: false</code> and does not attempt a silent refresh on it.</p>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge post">POST</span><span class="path">/auth/refresh</span><div class="ticket-tags"><span class="badge noauth">no auth</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge must">MUST</span> Body <code>{ refresh_token: string }</code> → same <code>AuthResponse</code> envelope as login on <code>200</code>. Invalid or expired → <code>401</code>, code <code>invalid_refresh_token</code>.</p>
+        <p><span class="badge must">MUST</span> On <code>401</code> from this endpoint, the frontend signs the user out client-side (clears tokens, redirects to login) — it does not retry again.</p>
+        <div class="not-enforced"><strong>Dedup note (frontend behavior, no backend action needed):</strong> <code>apiFetch</code> in <code>src/api/client.js</code> dedupes concurrent refreshes — if 5 requests 401 at once, only one <code>/auth/refresh</code> call fires and the other 4 await the same in-flight promise. Your endpoint just needs to be safely callable more than once with the same token without side effects beyond issuing a new pair.</p></div>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge post">POST</span><span class="path">/auth/logout</span><div class="ticket-tags"><span class="badge auth">bearer</span></div></div>
+      <div class="ticket-body"><p><span class="badge must">MUST</span> Body <code>{ refresh_token: string }</code> → revoke it, respond <code>204</code> with an empty body. The frontend calls this with <code>retryOn401: false</code> too and ignores the response either way (it clears local state regardless).</p></div>
+    </div>
+
+    <h3>Every endpoint below marked <span class="badge auth">bearer</span> must reject like this</h3>
+    <p><span class="badge must">MUST</span> — this is the exact branch the mock's <code>requireAuth()</code> runs before doing anything else:</p>
+    <pre>1. Read the <span class="k">Authorization</span> header. Missing            → 401 unauthorized
+2. Strip a leading <span class="s">"Bearer "</span> (case-insensitive)
+3. Token doesn't decode, or type !== <span class="s">"access"</span>       → 401 unauthorized
+4. Token expired                                     → 401 unauthorized
+<span class="c">// only if all four pass does the handler run its own logic</span></pre>
+    <p style="margin-top:10px">Code for every case above is <code>unauthorized</code>, message <code>"Missing or expired access token."</code> — <span class="badge ref">REF</span> wording, <span class="badge must">MUST</span> status 401 + the error envelope shape, since a 401 is what triggers the frontend's silent-refresh-and-retry-once.</p>
+  </section>
+
+  <section id="tenant">
+    <div class="section-head"><span class="section-num">02</span><h2>Tenant config</h2></div>
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge get">GET</span><span class="path">/tenant/config</span><div class="ticket-tags"><span class="badge noauth">no auth</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge ref">REF</span> Resolve "which tenant" however fits your deployment (Host header, <code>?tenant=</code> — the frontend doesn't send anything extra today, so whichever convention you pick, the frontend just needs pointing at the right base URL per tenant). <span class="badge must">MUST</span> response shape:</p>
+        <details class="schema" open><summary>200 response</summary>
+          <div class="schema-inner"><pre>{ <span class="k">"name"</span>: <span class="s">"FOOM Outlet"</span>, <span class="k">"logo_url"</span>: <span class="s">""</span> }</pre></div>
+        </details>
+        <p style="margin-top:10px"><span class="removed mono">primary_color</span> · <span class="removed mono">secondary_color</span> — do not add these back. Removed in v4; color is <code>localStorage</code>-only on the frontend.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="companies">
+    <div class="section-head"><span class="section-num">03</span><h2>Companies</h2></div>
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge get">GET</span><span class="path">/companies</span><div class="ticket-tags"><span class="badge auth">bearer</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge must">MUST</span> Returns <code>Company[]</code> filtered to the authenticated user (the mock does <code>mockCompanies.filter(c =&gt; mockUser.company_ids.has(c.id))</code> — yours filters by <code>res.users.company_ids</code>).</p>
+        <details class="schema"><summary>200 response</summary>
+          <div class="schema-inner"><pre>[ { <span class="k">"id"</span>: <span class="s">"c1"</span>, <span class="k">"name"</span>: <span class="s">"Kawah Putih"</span>, <span class="k">"logo_url"</span>: <span class="s">""</span> } ]</pre></div>
+        </details>
+        <div class="not-enforced"><strong>The frontend's ACL depends entirely on this endpoint being honest:</strong> the Config screen's company picker only ever shows what this call returns — it does no independent permission check. That means every other endpoint below that takes a <code>company_id</code> MUST re-verify server-side that the id belongs to the caller, exactly as if a client sent an id from this list belonging to someone else.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="order-lines">
+    <div class="section-head"><span class="section-num">04</span><h2>Order lines</h2></div>
+    <p>Kitchen state lives on <strong>sale.order.line</strong>, not <code>sale.order</code> — one order can have lines in different columns at once. Each line's <code>table_number</code> is its parent order's existing <code>client_order_ref</code>.</p>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge get">GET</span><span class="path">/order-lines</span><div class="ticket-tags"><span class="badge auth">bearer</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge must">MUST</span> Query params: <code>company_id</code> (required string), <code>since</code> (optional ISO-8601 datetime). This is the literal mock logic:</p>
+        <pre>orders = allOrders.filter(o =&gt; o.company_id === company_id)
+cards  = orders.flatMap(order =&gt; order.lines.map(line =&gt; flatten(order, line)))
+<span class="c">if</span> (since) cards = cards.filter(c =&gt; c.updated_at &gt; since)   <span class="c">// strict greater-than, not &gt;=</span>
+<span class="c">return</span> 200, cards   <span class="c">// OrderLineCard[] — see Shapes</span></pre>
+        <div class="not-enforced"><strong>Not enforced by the mock — you must add it:</strong> the mock trusts <code>company_id</code> as given, with no check that it's one of the caller's allowed companies. That's acceptable in a browser-only mock; it is <strong>not</strong> acceptable in the real backend — see the Companies section above.</div>
+        <p style="margin-top:10px"><span class="badge ref">REF</span> "Open" is undefined in the mock — it returns every line regardless of the parent order's own Odoo state. Decide your own open/closed filter; the frontend renders whatever comes back with no client-side filtering.</p>
+      </div>
+    </div>
+
+    <div class="ticket">
+      <div class="ticket-head"><span class="badge patch">PATCH</span><span class="path">/order-lines/{lineId}/state</span><div class="ticket-tags"><span class="badge auth">bearer</span></div></div>
+      <div class="ticket-body">
+        <p><span class="badge must">MUST</span> Body <code>{ kitchen_state: string }</code>. Exact validation order in the mock:</p>
+        <ol class="step-list">
+          <li>Auth check (see Auth section) → <code>401 unauthorized</code></li>
+          <li>Line lookup by <code>lineId</code> across all orders. Not found → <code>404 not_found</code></li>
+          <li>Read <code>kitchen_state</code> from the body — <strong>the mock never validates it's one of the 4 enum values</strong>, it's written through as-is</li>
+          <li>One hardcoded rule: current state is <code>served</code> <em>and</em> requested state is <code>pending</code> → <code>409 invalid_transition</code>. Every other combination, including nonsense values, is accepted and written</li>
+          <li>Otherwise: write <code>kitchen_state</code>, stamp <code>updated_at = now</code>, respond <code>200</code> with the updated <code>OrderLineCard</code></li>
+        </ol>
+        <div class="not-enforced"><strong>Not enforced by the mock — you must add it:</strong> (a) that <code>kitchen_state</code> is actually one of <code>pending | cooking | ready | served</code>, and (b) the real transition rules signed off with product — <code>served → pending</code> is a placeholder demo rule, not a spec. <span class="badge must">MUST</span> whatever rules you land on, an invalid transition returns <code>409</code> with the standard error envelope — the frontend already rolls the card back and shows a toast on any <code>409</code> here, no code change needed on the frontend side no matter which transitions you block.</div>
+        <p style="margin-top:10px"><span class="badge must">MUST</span> On success, also broadcast <code>order_line.updated</code> over the WebSocket (see below) with the same updated card — the frontend's board updates instantly from the socket in other open tabs/devices, not from this response alone.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="shapes">
+    <div class="section-head"><span class="section-num">05</span><h2>Data shapes</h2></div>
+    <p><span class="badge must">MUST</span> <code>GET /order-lines</code> and every WebSocket order-line event return the identical flat shape — one entry per line, pre-joined server-side. The frontend never reconstructs a nested order from separate calls.</p>
+
+    <pre style="margin-bottom:18px">{
+  <span class="k">"id"</span>: <span class="s">"l4"</span>,              <span class="c">// sale.order.line id</span>
+  <span class="k">"order_id"</span>: <span class="s">"so3"</span>,
+  <span class="k">"order_name"</span>: <span class="s">"SO0229"</span>,
+  <span class="k">"table_number"</span>: <span class="s">"12"</span>,     <span class="c">// sale.order.client_order_ref, as-is</span>
+  <span class="k">"customer_name"</span>: <span class="s">"Claire"</span>,
+  <span class="k">"product_name"</span>: <span class="s">"Chicken Satay"</span>,
+  <span class="k">"qty"</span>: 3,
+  <span class="k">"note"</span>: <span class="k">null</span>,           <span class="c">// optional, omit or null</span>
+  <span class="k">"kitchen_state"</span>: <span class="s">"cooking"</span>,
+  <span class="k">"created_at"</span>: <span class="s">"2026-09-16T09:00:00Z"</span>,
+  <span class="k">"updated_at"</span>: <span class="s">"2026-09-16T09:06:00Z"</span>
+}</pre>
+
+    <div class="shape-grid">
+      <div class="shape-card"><h3>TenantConfig</h3><ul class="field-list"><li><span class="fname">name</span><span class="ftype">string</span></li><li><span class="fname">logo_url</span><span class="ftype">string?</span></li></ul></div>
+      <div class="shape-card"><h3>Company</h3><ul class="field-list"><li><span class="fname">id</span><span class="ftype">string</span></li><li><span class="fname">name</span><span class="ftype">string</span></li><li><span class="fname">logo_url</span><span class="ftype">string?</span></li></ul></div>
+      <div class="shape-card"><h3>KitchenState</h3><ul class="field-list"><li><span class="fname">enum</span><span class="ftype">pending · cooking · ready · served</span></li></ul></div>
+      <div class="shape-card"><h3>Error</h3><ul class="field-list"><li><span class="fname">error.code</span><span class="ftype">string</span></li><li><span class="fname">error.message</span><span class="ftype">string</span></li></ul></div>
+    </div>
+  </section>
+
+  <section id="websocket">
+    <div class="section-head"><span class="section-num">06</span><h2>WebSocket gateway</h2></div>
+    <p>Odoo 18 has no native WebSocket (it speaks <code>bus.bus</code> long-polling) — this is new infrastructure, not a mock-to-real swap like the REST endpoints above.</p>
+    <pre>wss://{ws-host}/ws?company_id={companyId}&amp;token={accessToken}</pre>
+    <p style="margin-top:10px"><span class="badge must">MUST</span> Same JWT access token as REST. Token invalid/expired at connect time → close with code <code>4401</code>.</p>
+    <div class="not-enforced"><strong>What the frontend actually does with 4401 today:</strong> <code>kitchenSocket.js</code> checks for close code <code>4401</code> and fires an internal <code>__token_expired__</code> event, but <code>useKitchenSocket.js</code> doesn't currently act on it — the socket just falls into its normal exponential-backoff reconnect and re-reads whatever access token is in memory at that moment (which is usually already fresh, since REST calls silently refresh it independently). Don't build gateway-side logic assuming an immediate refresh round-trip follows a 4401 — there isn't one yet.</div>
+
+    <div class="table-wrap" style="margin-top:14px">
+      <table>
+        <thead><tr><th>Type</th><th>Data</th><th>When</th></tr></thead>
+        <tbody>
+          <tr><td><code>order_line.created</code></td><td>OrderLineCard</td><td>a new line enters the company scope</td></tr>
+          <tr><td><code>order_line.updated</code></td><td>OrderLineCard</td><td><code>kitchen_state</code> or any displayed field changes</td></tr>
+          <tr><td><code>order_line.removed</code></td><td><code>{ id }</code></td><td>a line leaves the scope</td></tr>
+          <tr><td><code>ping</code></td><td><code>{ ts }</code></td><td>heartbeat every 25s — client never replies</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p style="margin-top:10px"><span class="badge must">MUST</span> Message envelope is always <code>{ "type": string, "data": ... }</code> — the frontend does <code>JSON.parse(event.data)</code> and silently drops any frame that fails to parse or has no matching <code>type</code>.</p>
+
+    <h3>Reconnection the gateway should expect</h3>
+    <p>Client backoff: 1s → 2s → 4s → 8s → 16s, capped at 30s, ±20% jitter. After 3 failed attempts it switches to polling <code>GET /order-lines?...&amp;since=&lt;last_updated_at&gt;</code> every 5s while still retrying the socket. On any successful reconnect it fires one reconciliation <code>GET</code> before trusting the socket again — so the gateway can be simple and stateless per connection; missed events are always backfilled by that REST call, not replayed by the socket.</p>
+  </section>
+
+  <section id="gaps">
+    <div class="section-head"><span class="section-num">07</span><h2>Gaps between the mock and a real backend</h2></div>
+    <p>Everything above is either already true of the mock (and just needs re-implementing faithfully) or explicitly flagged where the mock cuts a corner a real backend can't. This is that second list, gathered in one place:</p>
+    <ul class="checklist">
+      <li><span class="num">1</span><div><strong><code>kitchen_state</code> field on <code>sale.order.line</code></strong><br><span>Doesn't exist in stock Odoo 18 — new selection field, values <code>pending | cooking | ready | served</code>, default <code>pending</code>. Small addon.</span></div></li>
+      <li><span class="num">2</span><div><strong>Company ACL on every <code>company_id</code>-scoped call</strong><br><span>The mock trusts the param outright. Real backend re-checks <code>res.users.company_ids</code> server-side every time — see Companies and Order Lines above.</span></div></li>
+      <li><span class="num">3</span><div><strong><code>kitchen_state</code> enum validation on PATCH</strong><br><span>The mock writes whatever string it's given. Reject anything outside the 4 valid values.</span></div></li>
+      <li><span class="num">4</span><div><strong>Real transition rules</strong><br><span>The mock's <code>served → pending</code> block is a placeholder to prove the 409/rollback path works — get the actual rule set signed off with product.</span></div></li>
+      <li><span class="num">5</span><div><strong>Definition of "open"</strong><br><span><code>GET /order-lines</code> has no filter in the mock at all. Decide what counts as open for kitchen purposes.</span></div></li>
+      <li><span class="num">6</span><div><strong>Real JWT issuance</strong><br><span>The mock's tokens are unsigned base64 JSON, readable and forgeable by design (it's client-side JS). Issue real signed tokens; keep the same response envelope.</span></div></li>
+      <li><span class="num">7</span><div><strong>WebSocket gateway itself</strong><br><span>Doesn't exist anywhere in the mock as real infrastructure — <code>wsMock.js</code> only fakes the client-visible contract. Build the bridge from Odoo's bus (or direct model writes) to the event contract above.</span></div></li>
+    </ul>
+  </section>
+
+  <section id="cutover">
+    <div class="section-head"><span class="section-num">08</span><h2>Local dev &amp; cutover</h2></div>
+    <p>MSW intercepts every endpoint above in-browser today — <code>src/api/mocks/fixtures.js</code> seeds 2 companies and ~8 orders, plus a fake WebSocket emitting random realtime events every 4–9s.</p>
+    <pre>npm install
+npm run dev        # VITE_USE_MOCKS=true by default</pre>
+
+    <h3>Flip these two once the real backend matches everything above</h3>
+    <div class="env-grid">
+      <div class="env-card"><div class="k">Base URL</div><code>VITE_API_BASE_URL=<br>https://kds-api.yourdomain.com</code></div>
+      <div class="env-card"><div class="k">WebSocket</div><code>VITE_WS_URL=<br>wss://kds-ws.yourdomain.com/ws</code></div>
+      <div class="env-card"><div class="k">Mocks off</div><code>VITE_USE_MOCKS=false</code></div>
+    </div>
+    <p style="margin-top:14px"><span class="badge must">MUST</span> No frontend code change is required if every response shape and status code above matches. If something has to differ, that's a contract change — update <code>docs/openapi.yaml</code> first, then the matching function in <code>src/api/</code>, so this document, the mock, and the real API never quietly drift apart.</p>
+  </section>
+
+  <footer>Generated from <code>src/api/mocks/handlers.js</code>, <code>fixtures.js</code>, <code>wsMock.js</code>, and <code>docs/openapi.yaml</code> — v4.0.0-draft. This page specifies backend behavior; it is not end-user documentation.</footer>
+</main>
