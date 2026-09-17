@@ -3,6 +3,8 @@ import { useDraggable } from '@dnd-kit/core'
 import { OrderMeta } from '../molecules/OrderMeta'
 import { Badge } from '../atoms/Badge'
 import { printReceipt } from '../../lib/receipt'
+import { printViaBluetooth } from '../../lib/printer'
+import { usePrinterStore } from '../../store/printerStore'
 
 const PrinterIcon = (props) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5" {...props}>
@@ -49,6 +51,19 @@ export function OrderCardOverlay({ card }) {
 // client_order_ref so kitchen staff know where it goes.
 function OrderCardImpl({ card }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id })
+  const printerStatus = usePrinterStore((s) => s.status)
+  const printerCharacteristic = usePrinterStore((s) => s.characteristic)
+
+  function handlePrint() {
+    if (printerStatus === 'connected' && printerCharacteristic) {
+      // Bluetooth write failing (printer off, out of range, disconnected
+      // mid-print) shouldn't lose the ticket — fall back to the print
+      // dialog so the kitchen still gets it.
+      printViaBluetooth(printerCharacteristic, card).catch(() => printReceipt(card))
+    } else {
+      printReceipt(card)
+    }
+  }
 
   // While dragging, this element stays put as a dashed placeholder marking
   // the origin slot — the actual moving card is the DragOverlay clone
@@ -77,7 +92,7 @@ function OrderCardImpl({ card }) {
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
-            printReceipt(card)
+            handlePrint()
           }}
           className="mt-2 flex items-center gap-1 text-xs font-medium text-gray-400 hover:text-brand"
         >

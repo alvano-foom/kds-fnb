@@ -6,6 +6,7 @@ import { useAuthStore } from '../store/authStore'
 import { useTenantStore } from '../store/tenantStore'
 import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
 import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
+import { usePrinterStore } from '../store/printerStore'
 
 // jsdom has no SpeechSynthesis implementation. A passive stub keeps the
 // TextToSpeech component's SUPPORTED check true across the suite;
@@ -37,6 +38,14 @@ afterEach(() => {
   useTenantStore.setState({ companyId: null, companyName: null })
   useThemeStore.setState(DEFAULT_THEME)
   useTtsStore.setState(DEFAULT_TTS)
+  usePrinterStore.setState({
+    status: 'idle',
+    deviceName: null,
+    serviceLabel: null,
+    error: null,
+    device: null,
+    characteristic: null,
+  })
 })
 
 afterAll(() => server.close())
