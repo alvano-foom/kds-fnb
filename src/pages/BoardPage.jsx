@@ -1,6 +1,7 @@
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/templates/AppShell'
 import { KanbanBoard } from '../components/organisms/KanbanBoard'
+import { PendingOrderAlerts } from '../components/organisms/PendingOrderAlerts'
 import { ConnectionStatus } from '../components/molecules/ConnectionStatus'
 import { Button } from '../components/atoms/Button'
 import { Spinner } from '../components/atoms/Spinner'
@@ -42,10 +43,17 @@ export function BoardPage() {
           <Spinner className="h-8 w-8 text-brand" />
         </div>
       ) : (
-        <KanbanBoard
-          cards={lines.data ?? []}
-          onDrop={(lineId, kitchenState) => updateState.mutate({ lineId, kitchenState })}
-        />
+        <>
+          {/* Mounted only once real data has loaded, so its first render
+              establishes the true baseline — mounting it earlier (while
+              lines.data is still undefined) would treat every already-
+              pending seed order as "newly" pending the moment data arrives. */}
+          <PendingOrderAlerts cards={lines.data ?? []} />
+          <KanbanBoard
+            cards={lines.data ?? []}
+            onDrop={(lineId, kitchenState) => updateState.mutate({ lineId, kitchenState })}
+          />
+        </>
       )}
     </AppShell>
   )

@@ -5,6 +5,27 @@ import { server } from './server'
 import { useAuthStore } from '../store/authStore'
 import { useTenantStore } from '../store/tenantStore'
 import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
+import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
+
+// jsdom has no SpeechSynthesis implementation. A passive stub keeps the
+// TextToSpeech component's SUPPORTED check true across the suite;
+// TextToSpeech.test.jsx swaps in vi.fn() spies where it needs to assert calls.
+if (typeof window !== 'undefined' && !window.speechSynthesis) {
+  window.speechSynthesis = {
+    getVoices: () => [],
+    speak: () => {},
+    cancel: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }
+  class FakeUtterance {
+    constructor(text) {
+      this.text = text
+      this.voice = null
+    }
+  }
+  window.SpeechSynthesisUtterance = FakeUtterance
+}
 
 beforeAll(() => server.listen({ onUnhandledRequest: 'bypass' }))
 
@@ -15,6 +36,7 @@ afterEach(() => {
   useAuthStore.setState({ accessToken: null, refreshToken: null, user: null })
   useTenantStore.setState({ companyId: null, companyName: null })
   useThemeStore.setState(DEFAULT_THEME)
+  useTtsStore.setState(DEFAULT_TTS)
 })
 
 afterAll(() => server.close())
