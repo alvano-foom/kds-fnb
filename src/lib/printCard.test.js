@@ -3,6 +3,7 @@ import { printCard } from './printCard'
 import { printReceipt } from './receipt'
 import { connectTestPrinter, printViaBluetooth } from './printer'
 import { usePrinterStore } from '../store/printerStore'
+import { useErrorLogStore } from '../store/errorLogStore'
 
 vi.mock('./receipt', () => ({ printReceipt: vi.fn() }))
 vi.mock('./printer', async () => {
@@ -31,6 +32,16 @@ describe('printCard', () => {
     printViaBluetooth.mockRejectedValue(new Error('printer out of range'))
     await printCard(card, { status: 'connected', characteristic: {} })
     expect(printReceipt).toHaveBeenCalledWith(card)
+  })
+
+  it('records a Bluetooth write failure in the error log, so a silent fallback still leaves a trace', async () => {
+    printViaBluetooth.mockRejectedValue(new Error('printer out of range'))
+    await printCard(card, { status: 'connected', characteristic: {} })
+
+    const [entry] = useErrorLogStore.getState().entries
+    expect(entry.category).toBe('printer')
+    expect(entry.message).toContain('SO0231')
+    expect(entry.detail).toBe('printer out of range')
   })
 
   describe('with the simulated Test Printer connected', () => {

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { useErrorLogStore } from './errorLogStore'
 
 /**
  * Live Bluetooth printer connection. `device`/`characteristic` are real
@@ -52,7 +53,14 @@ export const usePrinterStore = create(
           error: null,
         }),
 
-      setError: (message) => set({ status: 'error', error: message }),
+      // Every printer error funnels through here, so logging it once here
+      // (rather than at each call site) covers pairing failures, test
+      // print failures, etc. automatically — see the Error Log page
+      // (Settings → Error Log, errorLogStore.js).
+      setError: (message) => {
+        useErrorLogStore.getState().logError({ category: 'printer', message })
+        set({ status: 'error', error: message })
+      },
 
       disconnect: () => {
         try {
@@ -66,7 +74,14 @@ export const usePrinterStore = create(
       // The printer itself dropped the connection (out of range, powered
       // off, etc.) — same end state as disconnect(), but without trying
       // to call .disconnect() again on an already-gone GATT server.
-      handleUnexpectedDisconnect: () => set({ status: 'idle', device: null, characteristic: null }),
+      handleUnexpectedDisconnect: () => {
+        const name = get().deviceName
+        useErrorLogStore.getState().logError({
+          category: 'printer',
+          message: `Printer disconnected unexpectedly${name ? ` (${name})` : ''}.`,
+        })
+        set({ status: 'idle', device: null, characteristic: null })
+      },
     }),
     {
       name: 'kds_printer',

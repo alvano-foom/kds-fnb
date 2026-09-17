@@ -17,9 +17,14 @@ export function ConfigPage() {
       title={tenantConfig.data?.name ?? 'Kitchen Display'}
       logoUrl={tenantConfig.data?.logo_url}
       rightSlot={
-        <Button variant="ghost" onClick={() => logout.mutate()}>
-          Log out
-        </Button>
+        <>
+          <Button variant="ghost" onClick={() => navigate('/errors')}>
+            Error Log
+          </Button>
+          <Button variant="ghost" onClick={() => logout.mutate()}>
+            Log out
+          </Button>
+        </>
       }
     >
       <div className="mx-auto max-w-md">

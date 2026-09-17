@@ -1,6 +1,7 @@
 import { printReceipt } from './receipt'
 import { formatReceiptPreview, isTestPrinterCharacteristic, printViaBluetooth } from './printer'
 import { usePrinterStore } from '../store/printerStore'
+import { useErrorLogStore } from '../store/errorLogStore'
 
 /**
  * One ticket, however it needs to get to paper: straight to the paired
@@ -20,7 +21,18 @@ export function printCard(card, printer) {
       usePrinterStore.getState().logTestPrint(card, formatReceiptPreview(card))
       return Promise.resolve()
     }
-    return printViaBluetooth(printer.characteristic, card).catch(() => printReceipt(card))
+    return printViaBluetooth(printer.characteristic, card).catch((err) => {
+      // The ticket still gets to paper via the fallback below, so this
+      // isn't surfaced as a blocking printerStore error (no banner, no
+      // disconnect) — but it's exactly the kind of thing "why isn't my
+      // printer printing" needs a record of, so it goes in the log.
+      useErrorLogStore.getState().logError({
+        category: 'printer',
+        message: `Bluetooth print failed for ${card.order_name ?? card.id ?? 'an order'} — fell back to the print dialog.`,
+        detail: err?.message ?? String(err),
+      })
+      return printReceipt(card)
+    })
   }
   return Promise.resolve(printReceipt(card))
 }

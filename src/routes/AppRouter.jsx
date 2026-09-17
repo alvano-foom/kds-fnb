@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { LoginPage } from '../pages/LoginPage'
 import { ConfigPage } from '../pages/ConfigPage'
 import { BoardPage } from '../pages/BoardPage'
+import { ErrorLogPage } from '../pages/ErrorLogPage'
 import { useIsAuthenticated } from '../hooks/useAuth'
 import { useTenantStore } from '../store/tenantStore'
 
@@ -25,6 +26,14 @@ export function AppRouter() {
           element={
             <RequireAuth>
               <ConfigPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/errors"
+          element={
+            <RequireAuth>
+              <ErrorLogPage />
             </RequireAuth>
           }
         />

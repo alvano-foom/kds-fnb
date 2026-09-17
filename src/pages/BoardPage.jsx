@@ -32,6 +32,9 @@ export function BoardPage() {
           <Button variant="ghost" onClick={() => navigate('/config')}>
             Settings
           </Button>
+          <Button variant="ghost" onClick={() => navigate('/errors')}>
+            Error Log
+          </Button>
           <Button variant="ghost" onClick={() => logout.mutate()}>
             Log out
           </Button>

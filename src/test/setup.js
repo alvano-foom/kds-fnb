@@ -7,6 +7,7 @@ import { useTenantStore } from '../store/tenantStore'
 import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
 import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
 import { usePrinterStore } from '../store/printerStore'
+import { useErrorLogStore } from '../store/errorLogStore'
 
 // jsdom has no SpeechSynthesis implementation. A passive stub keeps the
 // TextToSpeech component's SUPPORTED check true across the suite;
@@ -48,6 +49,7 @@ afterEach(() => {
     autoPrint: false,
     testPrints: [],
   })
+  useErrorLogStore.setState({ entries: [] })
 })
 
 afterAll(() => server.close())
