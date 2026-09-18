@@ -1,0 +1,11 @@
+{
+  "name": "kds-print-bridge",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Standalone HTTP-to-TCP relay for the KDS app's Network Printer (IP address) option. No dependencies — plain Node.js.",
+  "type": "commonjs",
+  "main": "bridge.js",
+  "scripts": {
+    "start": "node bridge.js"
+  }
+}

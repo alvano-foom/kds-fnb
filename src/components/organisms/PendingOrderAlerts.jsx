@@ -43,7 +43,15 @@ export function PendingOrderAlerts({ cards }) {
   const text = useTtsStore((s) => s.text)
   const autoPrint = usePrinterStore((s) => s.autoPrint)
   const printerStatus = usePrinterStore((s) => s.status)
+  const printerConnectionType = usePrinterStore((s) => s.connectionType)
   const printerCharacteristic = usePrinterStore((s) => s.characteristic)
+  const printerNetworkHost = usePrinterStore((s) => s.networkHost)
+  const printerNetworkPort = usePrinterStore((s) => s.networkPort)
+  const printerNetworkSecure = usePrinterStore((s) => s.networkSecure)
+  const printerAndroidTransport = usePrinterStore((s) => s.androidTransport)
+  const printerAndroidMac = usePrinterStore((s) => s.androidMac)
+  const printerAndroidHost = usePrinterStore((s) => s.androidHost)
+  const printerAndroidPort = usePrinterStore((s) => s.androidPort)
 
   useEffect(() => {
     const prevStates = prevStatesRef.current
@@ -62,7 +70,25 @@ export function PendingOrderAlerts({ cards }) {
         const alertId = `${card.id}-${card.updated_at}`
         setAlerts((current) => [...current, { id: alertId, message }])
         speakText(message, { voiceURI })
-        if (autoPrint) printCard(card, { status: printerStatus, characteristic: printerCharacteristic })
+        if (autoPrint) {
+          // Note for connectionType === 'android': this fires from a data
+          // effect, not a click, and Chrome-on-Android's gesture
+          // requirement for intent:// navigation is unverified for that
+          // case — see androidPrintBridge.js. Confirm auto-print actually
+          // reaches the companion app on a real tablet before relying on it.
+          printCard(card, {
+            status: printerStatus,
+            connectionType: printerConnectionType,
+            characteristic: printerCharacteristic,
+            networkHost: printerNetworkHost,
+            networkPort: printerNetworkPort,
+            networkSecure: printerNetworkSecure,
+            androidTransport: printerAndroidTransport,
+            androidMac: printerAndroidMac,
+            androidHost: printerAndroidHost,
+            androidPort: printerAndroidPort,
+          })
+        }
         setTimeout(() => {
           setAlerts((current) => current.filter((a) => a.id !== alertId))
         }, DISMISS_MS)
@@ -70,7 +96,22 @@ export function PendingOrderAlerts({ cards }) {
     }
 
     prevStatesRef.current = nextStates
-  }, [cards, voiceURI, text, autoPrint, printerStatus, printerCharacteristic])
+  }, [
+    cards,
+    voiceURI,
+    text,
+    autoPrint,
+    printerStatus,
+    printerConnectionType,
+    printerCharacteristic,
+    printerNetworkHost,
+    printerNetworkPort,
+    printerNetworkSecure,
+    printerAndroidTransport,
+    printerAndroidMac,
+    printerAndroidHost,
+    printerAndroidPort,
+  ])
 
   if (alerts.length === 0) return null
 

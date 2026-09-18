@@ -41,6 +41,7 @@ afterEach(() => {
   useTtsStore.setState(DEFAULT_TTS)
   usePrinterStore.setState({
     status: 'idle',
+    connectionType: null,
     deviceName: null,
     serviceLabel: null,
     error: null,
@@ -48,6 +49,13 @@ afterEach(() => {
     characteristic: null,
     autoPrint: false,
     testPrints: [],
+    networkHost: '',
+    networkPort: '8008',
+    networkSecure: false,
+    androidTransport: 'bluetooth',
+    androidMac: '',
+    androidHost: '',
+    androidPort: '9100',
   })
   useErrorLogStore.setState({ entries: [] })
 })

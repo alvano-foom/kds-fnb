@@ -30,7 +30,18 @@ describe('OrderCard', () => {
     // match would find both elements.
     await user.click(screen.getByRole('button', { name: /^print$/i }))
 
-    expect(printCard).toHaveBeenCalledWith(card, { status: 'idle', characteristic: null })
+    expect(printCard).toHaveBeenCalledWith(card, {
+      status: 'idle',
+      connectionType: null,
+      characteristic: null,
+      networkHost: '',
+      networkPort: '8008',
+      networkSecure: false,
+      androidTransport: 'bluetooth',
+      androidMac: '',
+      androidHost: '',
+      androidPort: '9100',
+    })
     // The card itself is still in its normal (non-dragging) state — the
     // click didn't get interpreted as a drag start.
     expect(screen.getByText('SO0231')).toBeVisible()
@@ -44,6 +55,17 @@ describe('OrderCard', () => {
 
     await user.click(screen.getByRole('button', { name: /^print$/i }))
 
-    expect(printCard).toHaveBeenCalledWith(card, { status: 'connected', characteristic })
+    expect(printCard).toHaveBeenCalledWith(card, {
+      status: 'connected',
+      connectionType: null,
+      characteristic,
+      networkHost: '',
+      networkPort: '8008',
+      networkSecure: false,
+      androidTransport: 'bluetooth',
+      androidMac: '',
+      androidHost: '',
+      androidPort: '9100',
+    })
   })
 })

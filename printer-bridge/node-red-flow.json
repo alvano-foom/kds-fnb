@@ -1,0 +1,110 @@
+[
+  {
+    "id": "flow_kds_bridge",
+    "type": "tab",
+    "label": "KDS Print Bridge",
+    "disabled": false,
+    "info": "Relays HTTP requests from the KDS app to a raw TCP printer socket."
+  },
+  {
+    "id": "http_in_print",
+    "type": "http in",
+    "z": "flow_kds_bridge",
+    "name": "POST /print",
+    "url": "/print",
+    "method": "post",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 120,
+    "wires": [
+      [
+        "fn_relay_print"
+      ]
+    ]
+  },
+  {
+    "id": "http_in_status",
+    "type": "http in",
+    "z": "flow_kds_bridge",
+    "name": "GET /status",
+    "url": "/status",
+    "method": "get",
+    "upload": false,
+    "swaggerDoc": "",
+    "x": 150,
+    "y": 260,
+    "wires": [
+      [
+        "fn_status_ok"
+      ]
+    ]
+  },
+  {
+    "id": "fn_relay_print",
+    "type": "function",
+    "z": "flow_kds_bridge",
+    "name": "Relay bytes to printer (edit host/port below)",
+    "func": "const PRINTER_HOST = '192.168.1.20'; // <-- EDIT: your printer's IP\nconst PRINTER_PORT = 9100;           // <-- EDIT: 9100 is standard raw/JetDirect printing\n\nreturn new Promise((resolve) => {\n    let settled = false;\n    const finish = (statusCode, payload) => {\n        if (settled) return;\n        settled = true;\n        msg.statusCode = statusCode;\n        msg.headers = { 'Access-Control-Allow-Origin': '*' };\n        msg.payload = payload;\n        resolve(msg);\n    };\n\n    const socket = net.connect({ host: PRINTER_HOST, port: PRINTER_PORT }, () => {\n        socket.end(msg.payload);\n    });\n    socket.setTimeout(8000, () => socket.destroy(new Error('Timed out talking to the printer')));\n    socket.on('close', () => finish(200, 'printed'));\n    socket.on('error', (err) => {\n        finish(502, 'Could not reach the printer at ' + PRINTER_HOST + ':' + PRINTER_PORT + ': ' + err.message);\n    });\n});",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [
+      {
+        "var": "net",
+        "module": "net"
+      }
+    ],
+    "x": 400,
+    "y": 120,
+    "wires": [
+      [
+        "http_res_print"
+      ]
+    ]
+  },
+  {
+    "id": "fn_status_ok",
+    "type": "function",
+    "z": "flow_kds_bridge",
+    "name": "200 ok",
+    "func": "msg.statusCode = 200;\nmsg.headers = { 'Access-Control-Allow-Origin': '*' };\nmsg.payload = 'ok';\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 380,
+    "y": 260,
+    "wires": [
+      [
+        "http_res_status"
+      ]
+    ]
+  },
+  {
+    "id": "http_res_print",
+    "type": "http response",
+    "z": "flow_kds_bridge",
+    "name": "Respond /print",
+    "statusCode": "",
+    "headers": {},
+    "x": 650,
+    "y": 120,
+    "wires": []
+  },
+  {
+    "id": "http_res_status",
+    "type": "http response",
+    "z": "flow_kds_bridge",
+    "name": "Respond /status",
+    "statusCode": "",
+    "headers": {},
+    "x": 600,
+    "y": 260,
+    "wires": []
+  }
+]

@@ -192,6 +192,7 @@ export function connectTestPrinter() {
     device: { name: 'Test Printer (simulated)' },
     characteristic: TEST_PRINTER,
     serviceLabel: 'Software target — no hardware, no popup',
+    connectionType: 'test',
   }
 }
 

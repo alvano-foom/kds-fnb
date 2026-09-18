@@ -82,6 +82,17 @@ describe('PendingOrderAlerts', () => {
     rerender(<PendingOrderAlerts cards={[nowPending]} />)
 
     expect(screen.getByRole('status')).toBeInTheDocument()
-    expect(printCard).toHaveBeenCalledWith(nowPending, { status: 'connected', characteristic: {} })
+    expect(printCard).toHaveBeenCalledWith(nowPending, {
+      status: 'connected',
+      connectionType: null,
+      characteristic: {},
+      networkHost: '',
+      networkPort: '8008',
+      networkSecure: false,
+      androidTransport: 'bluetooth',
+      androidMac: '',
+      androidHost: '',
+      androidPort: '9100',
+    })
   })
 })

@@ -51,10 +51,29 @@ export function OrderCardOverlay({ card }) {
 function OrderCardImpl({ card }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id })
   const printerStatus = usePrinterStore((s) => s.status)
+  const printerConnectionType = usePrinterStore((s) => s.connectionType)
   const printerCharacteristic = usePrinterStore((s) => s.characteristic)
+  const printerNetworkHost = usePrinterStore((s) => s.networkHost)
+  const printerNetworkPort = usePrinterStore((s) => s.networkPort)
+  const printerNetworkSecure = usePrinterStore((s) => s.networkSecure)
+  const printerAndroidTransport = usePrinterStore((s) => s.androidTransport)
+  const printerAndroidMac = usePrinterStore((s) => s.androidMac)
+  const printerAndroidHost = usePrinterStore((s) => s.androidHost)
+  const printerAndroidPort = usePrinterStore((s) => s.androidPort)
 
   function handlePrint() {
-    printCard(card, { status: printerStatus, characteristic: printerCharacteristic })
+    printCard(card, {
+      status: printerStatus,
+      connectionType: printerConnectionType,
+      characteristic: printerCharacteristic,
+      networkHost: printerNetworkHost,
+      networkPort: printerNetworkPort,
+      networkSecure: printerNetworkSecure,
+      androidTransport: printerAndroidTransport,
+      androidMac: printerAndroidMac,
+      androidHost: printerAndroidHost,
+      androidPort: printerAndroidPort,
+    })
   }
 
   // While dragging, this element stays put as a dashed placeholder marking
