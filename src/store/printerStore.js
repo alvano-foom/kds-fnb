@@ -2,74 +2,70 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useErrorLogStore } from './errorLogStore'
 
+/** A short, good-enough-for-a-local-list unique id — no dependency on `crypto.randomUUID` being present (older WebViews, some test environments). */
+export function generatePrinterId() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
+  return `printer-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 /**
  * Live Bluetooth printer connection. `device`/`characteristic` are real
  * GATT objects (not serializable, and not valid after a reload anyway —
  * Web Bluetooth has no silent auto-reconnect, pairing always needs a
  * fresh user gesture), so only `deviceName`/`serviceLabel` are persisted,
  * purely so the Config screen can show "last paired: X" as a hint.
+ *
+ * `printers` is the saved multi-printer list (Settings → Receipt Printer):
+ * each entry is either
+ *   { id, name, type: 'network', host, port, secure, printer? }
+ *     — `host`/`port`/`secure` address a printer-bridge process (see
+ *     src/lib/networkPrinter.js and printer-bridge/); `printer` is the
+ *     optional printer name to select when that one bridge process is
+ *     itself relaying to several physical printers (see
+ *     printer-bridge/README.md's "Multiple printers" section) — leave it
+ *     blank for a bridge that only relays to one.
+ *   { id, name, type: 'bluetooth' }
+ *     — just a label. Web Bluetooth has no silent reconnect, so "using"
+ *     one of these still opens the browser's device chooser every time;
+ *     the saved entry exists so it can be picked from a list instead of
+ *     re-describing the printer from scratch.
+ * `activePrinterId` points at whichever of these the live connection
+ * above (if any) belongs to — null when connected ad hoc (e.g. "Use Test
+ * Printer") or not connected at all.
  */
 export const usePrinterStore = create(
   persist(
     (set, get) => ({
       status: 'idle', // idle | connecting | connected | error
-      // Which of the three printing methods `status` currently describes.
-      // null until the first successful connect. 'bluetooth' and 'test'
-      // are also inferable from `characteristic` (a GATT object vs. the
-      // TEST_PRINTER symbol) for backwards compatibility, but 'network'
-      // has no characteristic at all, so this field is the one source of
-      // truth printCard.js and the UI actually branch on.
-      connectionType: null, // null | 'bluetooth' | 'network' | 'android' | 'test'
+      // Which method `status` currently describes. null until the first
+      // successful connect. 'bluetooth' and 'test' are also inferable from
+      // `characteristic` (a GATT object vs. the TEST_PRINTER symbol) for
+      // backwards compatibility, but 'network' has no characteristic at
+      // all, so this field is the one source of truth printCard.js and the
+      // UI actually branch on.
+      connectionType: null, // null | 'bluetooth' | 'network' | 'test'
       deviceName: null,
       serviceLabel: null,
       error: null,
       device: null,
       characteristic: null,
 
-      // Printer bridge host/port for the "Network Printer (IP address)"
-      // option — see src/lib/networkPrinter.js and printer-bridge/ for
-      // why a bridge is needed at all. Persisted (unlike Bluetooth's
-      // device/characteristic) because there's no GATT permission to
-      // re-grant and no user gesture required to reconnect: it's just a
-      // remembered address, reachable again with one click of "Connect".
-      networkHost: '',
-      networkPort: '8008',
-      networkSecure: false,
-      setNetworkHost: (networkHost) => set({ networkHost }),
-      setNetworkPort: (networkPort) => set({ networkPort }),
-      setNetworkSecure: (networkSecure) => set({ networkSecure }),
-
-      // "Android Print Helper" — hands tickets to a native companion app
-      // (printer-service-main) on THIS SAME tablet via a kdsprint://
-      // intent, instead of the browser talking to the printer itself. See
-      // src/lib/androidPrintBridge.js. Two transports the companion app
-      // supports: 'bluetooth' (classic/SPP, e.g. the iWare RPP02N, which
-      // Web Bluetooth can never see at all) or 'network' (a raw socket,
-      // opened natively on the tablet — no separate bridge computer).
-      androidTransport: 'bluetooth', // 'bluetooth' | 'network'
-      androidMac: '',
-      androidHost: '',
-      androidPort: '9100',
-      setAndroidTransport: (androidTransport) => set({ androidTransport }),
-      setAndroidMac: (androidMac) => set({ androidMac }),
-      setAndroidHost: (androidHost) => set({ androidHost }),
-      setAndroidPort: (androidPort) => set({ androidPort }),
-
-      // No handshake to make here — unlike Bluetooth pairing or the
-      // network bridge's reachability check, there's nothing this browser
-      // can verify about a native app on the same device before printing
-      // is actually attempted (see androidPrintBridge.js: the print call
-      // itself is fire-and-forget, with no success/failure reported back).
-      // So "Connect" just records the chosen config as active, the same
-      // instant way the Test Printer does.
-      setAndroidConnected: () =>
-        set({
-          status: 'connected',
-          connectionType: 'android',
-          device: null,
-          characteristic: null,
-          error: null,
+      // Saved printer profiles — see the module doc comment above.
+      printers: [],
+      activePrinterId: null,
+      savePrinter: (profile) =>
+        set((s) => {
+          const exists = s.printers.some((p) => p.id === profile.id)
+          return {
+            printers: exists ? s.printers.map((p) => (p.id === profile.id ? profile : p)) : [...s.printers, profile],
+          }
         }),
+      removePrinter: (id) =>
+        set((s) => ({
+          printers: s.printers.filter((p) => p.id !== id),
+          activePrinterId: s.activePrinterId === id ? null : s.activePrinterId,
+        })),
+      setActivePrinterId: (activePrinterId) => set({ activePrinterId }),
 
       // Off by default (matches the original manual-only design): a card
       // only prints when someone clicks its Print button. Turning this on
@@ -95,7 +91,10 @@ export const usePrinterStore = create(
 
       setConnecting: () => set({ status: 'connecting', error: null }),
 
-      setConnected: ({ device, characteristic, serviceLabel, connectionType = 'bluetooth' }) =>
+      // `printerId` is the saved profile (see `printers` above) this
+      // connection belongs to — null for an ad hoc pair not tied to any
+      // saved entry (e.g. the Test Printer).
+      setConnected: ({ device, characteristic, serviceLabel, connectionType = 'bluetooth', printerId = null }) =>
         set({
           status: 'connected',
           connectionType,
@@ -103,19 +102,19 @@ export const usePrinterStore = create(
           characteristic,
           serviceLabel,
           deviceName: device.name || 'Printer',
+          activePrinterId: printerId,
           error: null,
         }),
 
       // Network "connecting" reuses setConnecting() above (same generic
-      // status), so this only records the eventual success — deliberately
-      // does NOT touch deviceName/serviceLabel, which stay dedicated to
-      // Bluetooth's own "last paired: X" reconnect hint (see PrinterConfig).
-      setNetworkConnected: () =>
+      // status), so this only records the eventual success.
+      setNetworkConnected: (printerId) =>
         set({
           status: 'connected',
           connectionType: 'network',
           device: null,
           characteristic: null,
+          activePrinterId: printerId,
           error: null,
         }),
 
@@ -134,10 +133,9 @@ export const usePrinterStore = create(
         } catch {
           // already disconnected — nothing to do
         }
-        // Leaves deviceName/serviceLabel and networkHost/networkPort/
-        // networkSecure alone on purpose, same reasoning as Bluetooth's
-        // existing "last paired" hint: whichever method this was, the
-        // config is still right there ready for one-click reconnect.
+        // Leaves deviceName/serviceLabel, `printers`, and `activePrinterId`
+        // alone on purpose — whichever method this was, the saved profile
+        // is still right there ready for one-click reconnect.
         set({ status: 'idle', connectionType: null, device: null, characteristic: null, error: null })
       },
 
@@ -155,18 +153,44 @@ export const usePrinterStore = create(
     }),
     {
       name: 'kds_printer',
+      version: 2,
+      // v1 stored a single network profile as flat networkHost/networkPort/
+      // networkSecure fields (plus now-removed Android Print Helper
+      // fields). v2 replaces that with the `printers` list, so anyone
+      // upgrading keeps their already-working bridge address as the first
+      // saved (and active) profile, instead of losing it.
+      migrate: (persisted, version) => {
+        if (version >= 2) return persisted
+        const printers = []
+        if (persisted?.networkHost) {
+          printers.push({
+            id: 'migrated-network',
+            name: 'Network Printer',
+            type: 'network',
+            host: persisted.networkHost,
+            port: persisted.networkPort || '8008',
+            secure: Boolean(persisted.networkSecure),
+            printer: '',
+          })
+        }
+        return {
+          ...persisted,
+          printers,
+          activePrinterId: printers[0]?.id ?? null,
+        }
+      },
       partialize: (state) => ({
         deviceName: state.deviceName,
         serviceLabel: state.serviceLabel,
         autoPrint: state.autoPrint,
-        networkHost: state.networkHost,
-        networkPort: state.networkPort,
-        networkSecure: state.networkSecure,
-        androidTransport: state.androidTransport,
-        androidMac: state.androidMac,
-        androidHost: state.androidHost,
-        androidPort: state.androidPort,
+        printers: state.printers,
+        activePrinterId: state.activePrinterId,
       }),
     },
   ),
 )
+
+/** The saved profile the live connection (if any) belongs to — null when connected ad hoc or not connected. Returns the same object reference across renders whenever `printers`/`activePrinterId` haven't changed, so it's safe to use directly as a selector. */
+export function useActivePrinter() {
+  return usePrinterStore((s) => s.printers.find((p) => p.id === s.activePrinterId) || null)
+}

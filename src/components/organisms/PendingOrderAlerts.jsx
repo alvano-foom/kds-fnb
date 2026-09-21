@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useTtsStore } from '../../store/ttsStore'
-import { usePrinterStore } from '../../store/printerStore'
+import { usePrinterStore, useActivePrinter } from '../../store/printerStore'
 import { formatAnnouncement, speakText } from '../../lib/speech'
 import { printCard } from '../../lib/printCard'
 
@@ -45,13 +45,7 @@ export function PendingOrderAlerts({ cards }) {
   const printerStatus = usePrinterStore((s) => s.status)
   const printerConnectionType = usePrinterStore((s) => s.connectionType)
   const printerCharacteristic = usePrinterStore((s) => s.characteristic)
-  const printerNetworkHost = usePrinterStore((s) => s.networkHost)
-  const printerNetworkPort = usePrinterStore((s) => s.networkPort)
-  const printerNetworkSecure = usePrinterStore((s) => s.networkSecure)
-  const printerAndroidTransport = usePrinterStore((s) => s.androidTransport)
-  const printerAndroidMac = usePrinterStore((s) => s.androidMac)
-  const printerAndroidHost = usePrinterStore((s) => s.androidHost)
-  const printerAndroidPort = usePrinterStore((s) => s.androidPort)
+  const activePrinter = useActivePrinter()
 
   useEffect(() => {
     const prevStates = prevStatesRef.current
@@ -71,22 +65,11 @@ export function PendingOrderAlerts({ cards }) {
         setAlerts((current) => [...current, { id: alertId, message }])
         speakText(message, { voiceURI })
         if (autoPrint) {
-          // Note for connectionType === 'android': this fires from a data
-          // effect, not a click, and Chrome-on-Android's gesture
-          // requirement for intent:// navigation is unverified for that
-          // case — see androidPrintBridge.js. Confirm auto-print actually
-          // reaches the companion app on a real tablet before relying on it.
           printCard(card, {
             status: printerStatus,
             connectionType: printerConnectionType,
             characteristic: printerCharacteristic,
-            networkHost: printerNetworkHost,
-            networkPort: printerNetworkPort,
-            networkSecure: printerNetworkSecure,
-            androidTransport: printerAndroidTransport,
-            androidMac: printerAndroidMac,
-            androidHost: printerAndroidHost,
-            androidPort: printerAndroidPort,
+            activePrinter,
           })
         }
         setTimeout(() => {
@@ -104,13 +87,7 @@ export function PendingOrderAlerts({ cards }) {
     printerStatus,
     printerConnectionType,
     printerCharacteristic,
-    printerNetworkHost,
-    printerNetworkPort,
-    printerNetworkSecure,
-    printerAndroidTransport,
-    printerAndroidMac,
-    printerAndroidHost,
-    printerAndroidPort,
+    activePrinter,
   ])
 
   if (alerts.length === 0) return null

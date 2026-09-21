@@ -34,13 +34,7 @@ describe('OrderCard', () => {
       status: 'idle',
       connectionType: null,
       characteristic: null,
-      networkHost: '',
-      networkPort: '8008',
-      networkSecure: false,
-      androidTransport: 'bluetooth',
-      androidMac: '',
-      androidHost: '',
-      androidPort: '9100',
+      activePrinter: null,
     })
     // The card itself is still in its normal (non-dragging) state — the
     // click didn't get interpreted as a drag start.
@@ -59,13 +53,23 @@ describe('OrderCard', () => {
       status: 'connected',
       connectionType: null,
       characteristic,
-      networkHost: '',
-      networkPort: '8008',
-      networkSecure: false,
-      androidTransport: 'bluetooth',
-      androidMac: '',
-      androidHost: '',
-      androidPort: '9100',
+      activePrinter: null,
+    })
+  })
+
+  it('passes the saved network printer profile along when one is the active connection', async () => {
+    const profile = { id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' }
+    usePrinterStore.setState({ status: 'connected', connectionType: 'network', printers: [profile], activePrinterId: 'p1' })
+    const user = userEvent.setup()
+    render(<OrderCard card={card} />)
+
+    await user.click(screen.getByRole('button', { name: /^print$/i }))
+
+    expect(printCard).toHaveBeenCalledWith(card, {
+      status: 'connected',
+      connectionType: 'network',
+      characteristic: null,
+      activePrinter: profile,
     })
   })
 })

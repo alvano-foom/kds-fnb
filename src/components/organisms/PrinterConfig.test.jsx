@@ -5,7 +5,6 @@ import { PrinterConfig } from './PrinterConfig'
 import { usePrinterStore } from '../../store/printerStore'
 import * as printer from '../../lib/printer'
 import * as networkPrinter from '../../lib/networkPrinter'
-import * as androidPrintBridge from '../../lib/androidPrintBridge'
 
 vi.mock('../../lib/printer', async () => {
   const actual = await vi.importActual('../../lib/printer')
@@ -13,12 +12,25 @@ vi.mock('../../lib/printer', async () => {
 })
 vi.mock('../../lib/networkPrinter', async () => {
   const actual = await vi.importActual('../../lib/networkPrinter')
-  return { ...actual, checkNetworkBridge: vi.fn(), testNetworkConnection: vi.fn() }
+  return {
+    ...actual,
+    checkNetworkBridge: vi.fn(),
+    testNetworkConnection: vi.fn(),
+    listBridgePrinters: vi.fn().mockResolvedValue([]),
+  }
 })
-vi.mock('../../lib/androidPrintBridge', async () => {
-  const actual = await vi.importActual('../../lib/androidPrintBridge')
-  return { ...actual, printViaAndroidBridge: vi.fn() }
-})
+
+async function addNetworkPrinter(user, { name = 'Kitchen 1', host = '192.168.1.50', port } = {}) {
+  await user.click(screen.getByRole('button', { name: /\+ add a network printer/i }))
+  if (name) await user.type(screen.getByLabelText(/printer name$/i), name)
+  if (host) await user.type(screen.getByLabelText(/printer bridge ip address/i), host)
+  if (port) {
+    const portInput = screen.getByLabelText(/printer bridge port/i)
+    await user.clear(portInput)
+    await user.type(portInput, port)
+  }
+  await user.click(screen.getByRole('button', { name: /^add printer$/i }))
+}
 
 describe('PrinterConfig', () => {
   afterEach(() => {
@@ -108,17 +120,17 @@ describe('PrinterConfig', () => {
     expect(screen.getByRole('checkbox', { name: /automatically print each new order/i })).toBeInTheDocument()
   })
 
-  describe('Network Printer (IP address)', () => {
-    it('connects after a successful reachability check, without sending a print job', async () => {
+  describe('Network Printers', () => {
+    it('adds a printer profile and connects to it after a successful reachability check', async () => {
       networkPrinter.checkNetworkBridge.mockResolvedValue(undefined)
       const user = userEvent.setup()
       render(<PrinterConfig />)
 
-      await user.type(screen.getByLabelText(/printer bridge ip address/i), '192.168.1.50')
-      await user.click(screen.getByRole('button', { name: /^connect$/i }))
+      await addNetworkPrinter(user)
+      await user.click(screen.getByRole('button', { name: /^use$/i }))
 
-      await waitFor(() => expect(screen.getByText(/connected: 192\.168\.1\.50:8008/i)).toBeInTheDocument())
-      expect(networkPrinter.checkNetworkBridge).toHaveBeenCalledWith({ host: '192.168.1.50', port: '8008', secure: false })
+      await waitFor(() => expect(screen.getByText(/connected: kitchen 1 \(192\.168\.1\.50:8008\)/i)).toBeInTheDocument())
+      expect(networkPrinter.checkNetworkBridge).toHaveBeenCalledWith({ host: '192.168.1.50', port: '8008', secure: true })
       expect(networkPrinter.testNetworkConnection).not.toHaveBeenCalled()
     })
 
@@ -127,79 +139,101 @@ describe('PrinterConfig', () => {
       const user = userEvent.setup()
       render(<PrinterConfig />)
 
-      await user.type(screen.getByLabelText(/printer bridge ip address/i), '192.168.1.50')
-      await user.click(screen.getByRole('button', { name: /^connect$/i }))
+      await addNetworkPrinter(user)
+      await user.click(screen.getByRole('button', { name: /^use$/i }))
 
       await waitFor(() => expect(screen.getByText(/could not reach the bridge/i)).toBeInTheDocument())
       expect(screen.queryByText(/connected:/i)).not.toBeInTheDocument()
     })
 
-    it('disables Connect until a host is entered', () => {
+    it('shows a validation message instead of saving when no host is entered', async () => {
+      const user = userEvent.setup()
       render(<PrinterConfig />)
-      expect(screen.getByRole('button', { name: /^connect$/i })).toBeDisabled()
+
+      await user.click(screen.getByRole('button', { name: /\+ add a network printer/i }))
+      await user.click(screen.getByRole('button', { name: /^add printer$/i }))
+
+      expect(screen.getByText(/enter the printer bridge's ip address/i)).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /^use$/i })).not.toBeInTheDocument()
     })
 
-    it('sends a test print over the network path once connected', async () => {
+    it('sends a test print over the network path once connected, including the saved printer name for a multi-printer bridge', async () => {
       networkPrinter.testNetworkConnection.mockResolvedValue(undefined)
-      usePrinterStore.setState({
-        status: 'connected',
-        connectionType: 'network',
-        networkHost: '192.168.1.50',
-        networkPort: '8008',
-      })
+      const profile = { id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.17', port: '8008', secure: true, printer: 'kitchen1' }
+      usePrinterStore.setState({ status: 'connected', connectionType: 'network', printers: [profile], activePrinterId: 'p1' })
       const user = userEvent.setup()
 
       render(<PrinterConfig />)
       await user.click(screen.getByRole('button', { name: /send test print/i }))
 
-      expect(networkPrinter.testNetworkConnection).toHaveBeenCalledWith({ host: '192.168.1.50', port: '8008', secure: false })
-    })
-  })
-
-  describe('Android Print Helper', () => {
-    it('connects instantly to a Bluetooth address, with no handshake', async () => {
-      const user = userEvent.setup()
-      render(<PrinterConfig />)
-
-      await user.type(screen.getByLabelText(/printer bluetooth address/i), 'AA:BB:CC:DD:EE:FF')
-      await user.click(screen.getByRole('button', { name: /use android print helper/i }))
-
-      expect(screen.getByText(/connected: android print helper.*bluetooth aa:bb:cc:dd:ee:ff/i)).toBeInTheDocument()
+      expect(networkPrinter.testNetworkConnection).toHaveBeenCalledWith({
+        host: '192.168.1.17',
+        port: '8008',
+        secure: true,
+        printer: 'kitchen1',
+      })
     })
 
-    it('switches to network fields and connects to a host/port', async () => {
-      const user = userEvent.setup()
-      render(<PrinterConfig />)
-
-      await user.click(screen.getByRole('radio', { name: /^network$/i }))
-      await user.type(screen.getByLabelText(/android print helper printer ip address/i), '192.168.1.60')
-      await user.click(screen.getByRole('button', { name: /use android print helper/i }))
-
-      expect(screen.getByText(/connected: android print helper.*192\.168\.1\.60:9100/i)).toBeInTheDocument()
-    })
-
-    it('disables the connect button until an address is entered', () => {
-      render(<PrinterConfig />)
-      expect(screen.getByRole('button', { name: /use android print helper/i })).toBeDisabled()
-    })
-
-    it('sends a test print through the Android bridge once connected', async () => {
-      androidPrintBridge.printViaAndroidBridge.mockResolvedValue(undefined)
+    it('lets a station switch between two saved printers', async () => {
+      networkPrinter.checkNetworkBridge.mockResolvedValue(undefined)
       usePrinterStore.setState({
-        status: 'connected',
-        connectionType: 'android',
-        androidTransport: 'bluetooth',
-        androidMac: 'AA:BB:CC:DD:EE:FF',
+        printers: [
+          { id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' },
+          { id: 'p2', name: 'Kitchen 2', type: 'network', host: '192.168.1.32', port: '8009', secure: true, printer: '' },
+        ],
       })
       const user = userEvent.setup()
-
       render(<PrinterConfig />)
-      await user.click(screen.getByRole('button', { name: /send test print/i }))
 
-      expect(androidPrintBridge.printViaAndroidBridge).toHaveBeenCalledWith(
-        { transport: 'bluetooth', mac: 'AA:BB:CC:DD:EE:FF', host: '', port: '9100' },
-        expect.objectContaining({ order_name: 'TEST PRINT' }),
+      await user.click(screen.getAllByRole('button', { name: /^use$/i })[1])
+
+      await waitFor(() => expect(screen.getByText(/connected: kitchen 2 \(192\.168\.1\.32:8009\)/i)).toBeInTheDocument())
+    })
+
+    it('edits a saved printer in place', async () => {
+      usePrinterStore.setState({
+        printers: [{ id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' }],
+      })
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /^edit$/i }))
+      const hostInput = screen.getByLabelText(/printer bridge ip address/i)
+      await user.clear(hostInput)
+      await user.type(hostInput, '192.168.1.99')
+      await user.click(screen.getByRole('button', { name: /save changes/i }))
+
+      expect(screen.getByText(/192\.168\.1\.99:8008/i)).toBeInTheDocument()
+      expect(usePrinterStore.getState().printers).toHaveLength(1)
+    })
+
+    it('removes a saved printer, disconnecting first if it was the active one', async () => {
+      const profile = { id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' }
+      usePrinterStore.setState({ status: 'connected', connectionType: 'network', printers: [profile], activePrinterId: 'p1' })
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /disconnect/i }))
+      await user.click(screen.getByRole('button', { name: /^remove$/i }))
+
+      expect(usePrinterStore.getState().printers).toHaveLength(0)
+      expect(screen.queryByText('Kitchen 1')).not.toBeInTheDocument()
+    })
+
+    it('fetches printer names from a multi-printer bridge and offers them as suggestions', async () => {
+      networkPrinter.listBridgePrinters.mockResolvedValue(['kitchen1', 'kitchen2'])
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /\+ add a network printer/i }))
+      await user.type(screen.getByLabelText(/printer bridge ip address/i), '192.168.1.17')
+      await user.click(screen.getByRole('button', { name: /fetch printer list from bridge/i }))
+
+      await waitFor(() =>
+        expect(networkPrinter.listBridgePrinters).toHaveBeenCalledWith({ host: '192.168.1.17', port: '8008', secure: true }),
       )
+      expect(document.querySelector('#bridge-printer-options')).toContainHTML('kitchen1')
+      expect(document.querySelector('#bridge-printer-options')).toContainHTML('kitchen2')
     })
   })
 

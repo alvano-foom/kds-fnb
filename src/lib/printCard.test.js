@@ -1,9 +1,8 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { printCard } from './printCard'
 import { printReceipt } from './receipt'
 import { connectTestPrinter, printViaBluetooth } from './printer'
 import { printViaNetwork } from './networkPrinter'
-import { printViaAndroidBridge } from './androidPrintBridge'
 import { usePrinterStore } from '../store/printerStore'
 import { useErrorLogStore } from '../store/errorLogStore'
 
@@ -15,10 +14,6 @@ vi.mock('./printer', async () => {
 vi.mock('./networkPrinter', async () => {
   const actual = await vi.importActual('./networkPrinter')
   return { ...actual, printViaNetwork: vi.fn() }
-})
-vi.mock('./androidPrintBridge', async () => {
-  const actual = await vi.importActual('./androidPrintBridge')
-  return { ...actual, printViaAndroidBridge: vi.fn() }
 })
 
 const card = { id: 'l1', order_name: 'SO0231', product_name: 'Fried Rice', qty: 2 }
@@ -55,14 +50,30 @@ describe('printCard', () => {
   })
 
   describe('with a network printer bridge connected', () => {
-    const printer = { status: 'connected', connectionType: 'network', networkHost: '192.168.1.50', networkPort: '8008' }
+    const printer = {
+      status: 'connected',
+      connectionType: 'network',
+      activePrinter: { host: '192.168.1.50', port: '8008', secure: false, printer: '' },
+    }
 
     it('prints via the network bridge, not Bluetooth or the print dialog', async () => {
       printViaNetwork.mockResolvedValue(undefined)
       await printCard(card, printer)
-      expect(printViaNetwork).toHaveBeenCalledWith({ host: '192.168.1.50', port: '8008', secure: undefined }, card)
+      expect(printViaNetwork).toHaveBeenCalledWith({ host: '192.168.1.50', port: '8008', secure: false, printer: '' }, card)
       expect(printViaBluetooth).not.toHaveBeenCalled()
       expect(printReceipt).not.toHaveBeenCalled()
+    })
+
+    it('passes the saved printer name through, for a bridge that relays to several printers', async () => {
+      printViaNetwork.mockResolvedValue(undefined)
+      await printCard(card, {
+        ...printer,
+        activePrinter: { host: '192.168.1.17', port: '8008', secure: true, printer: 'kitchen2' },
+      })
+      expect(printViaNetwork).toHaveBeenCalledWith(
+        { host: '192.168.1.17', port: '8008', secure: true, printer: 'kitchen2' },
+        card,
+      )
     })
 
     it('falls back to the print dialog and logs it if the bridge is unreachable', async () => {
@@ -76,35 +87,9 @@ describe('printCard', () => {
     })
   })
 
-  describe('with the Android print helper connected', () => {
-    const printer = { status: 'connected', connectionType: 'android', androidTransport: 'bluetooth', androidMac: 'AA:BB:CC:DD:EE:FF' }
-
-    it('hands the ticket to the Android bridge, not Bluetooth, network, or the print dialog', async () => {
-      printViaAndroidBridge.mockResolvedValue(undefined)
-      await printCard(card, printer)
-      expect(printViaAndroidBridge).toHaveBeenCalledWith(
-        { transport: 'bluetooth', mac: 'AA:BB:CC:DD:EE:FF', host: undefined, port: undefined },
-        card,
-      )
-      expect(printViaBluetooth).not.toHaveBeenCalled()
-      expect(printViaNetwork).not.toHaveBeenCalled()
-      expect(printReceipt).not.toHaveBeenCalled()
-    })
-
-    it('falls back to the print dialog and logs it if the hand-off is misconfigured', async () => {
-      printViaAndroidBridge.mockRejectedValue(new Error('Enter the printer bridge address first.'))
-      await printCard(card, printer)
-
-      expect(printReceipt).toHaveBeenCalledWith(card)
-      const [entry] = useErrorLogStore.getState().entries
-      expect(entry.message).toContain('Android print helper print failed for SO0231')
-    })
-  })
-
   describe('with the simulated Test Printer connected', () => {
-    afterEach(() => usePrinterStore.setState({ testPrints: [] }))
-
     it('logs the ticket instead of writing to Bluetooth or opening the print dialog', async () => {
+      usePrinterStore.setState({ testPrints: [] })
       const { characteristic } = connectTestPrinter()
       await printCard(card, { status: 'connected', characteristic })
 

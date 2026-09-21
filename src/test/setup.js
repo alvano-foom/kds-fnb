@@ -49,13 +49,8 @@ afterEach(() => {
     characteristic: null,
     autoPrint: false,
     testPrints: [],
-    networkHost: '',
-    networkPort: '8008',
-    networkSecure: false,
-    androidTransport: 'bluetooth',
-    androidMac: '',
-    androidHost: '',
-    androidPort: '9100',
+    printers: [],
+    activePrinterId: null,
   })
   useErrorLogStore.setState({ entries: [] })
 })

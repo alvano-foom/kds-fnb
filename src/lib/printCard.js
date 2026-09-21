@@ -1,7 +1,6 @@
 import { printReceipt } from './receipt'
 import { formatReceiptPreview, isTestPrinterCharacteristic, printViaBluetooth } from './printer'
 import { printViaNetwork } from './networkPrinter'
-import { printViaAndroidBridge } from './androidPrintBridge'
 import { usePrinterStore } from '../store/printerStore'
 import { useErrorLogStore } from '../store/errorLogStore'
 
@@ -24,8 +23,11 @@ function logFallback(card, transport, err) {
  * PendingOrderAlerts' auto-print, so the two never drift apart.
  *
  * @param {import('../types').OrderLineCard} card
- * @param {{ status: string, connectionType?: string|null, characteristic?: object|null, networkHost?: string, networkPort?: string|number, networkSecure?: boolean, androidTransport?: string, androidMac?: string, androidHost?: string, androidPort?: string|number }} printer
- *   the relevant slice of usePrinterStore's state. `connectionType` is
+ * @param {{ status: string, connectionType?: string|null, characteristic?: object|null, activePrinter?: { host?: string, port?: string|number, secure?: boolean, printer?: string }|null }} printer
+ *   the relevant slice of usePrinterStore's state, plus `activePrinter` —
+ *   the saved profile the live connection belongs to (see
+ *   useActivePrinter() in printerStore.js), which is where a 'network'
+ *   connection's host/port/secure/printer come from. `connectionType` is
  *   the primary switch; `isTestPrinterCharacteristic` is also checked so
  *   callers that only pass `characteristic` (as some existing tests do)
  *   still route to the Test Printer correctly.
@@ -38,21 +40,8 @@ export function printCard(card, printer) {
     }
 
     if (printer.connectionType === 'network') {
-      return printViaNetwork(
-        { host: printer.networkHost, port: printer.networkPort, secure: printer.networkSecure },
-        card,
-      ).catch((err) => logFallback(card, 'Network', err))
-    }
-
-    if (printer.connectionType === 'android') {
-      // Fire-and-forget by design (see androidPrintBridge.js) — this only
-      // rejects for a missing/invalid config, never for the actual print
-      // outcome, since a native-app intent hand-off has no way to report
-      // that back to this page.
-      return printViaAndroidBridge(
-        { transport: printer.androidTransport, mac: printer.androidMac, host: printer.androidHost, port: printer.androidPort },
-        card,
-      ).catch((err) => logFallback(card, 'Android print helper', err))
+      const { host, port, secure, printer: printerName } = printer.activePrinter || {}
+      return printViaNetwork({ host, port, secure, printer: printerName }, card).catch((err) => logFallback(card, 'Network', err))
     }
 
     if (printer.characteristic) {

@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import { OrderMeta } from '../molecules/OrderMeta'
 import { Badge } from '../atoms/Badge'
 import { printCard } from '../../lib/printCard'
-import { usePrinterStore } from '../../store/printerStore'
+import { usePrinterStore, useActivePrinter } from '../../store/printerStore'
 
 const PrinterIcon = (props) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5" {...props}>
@@ -53,26 +53,14 @@ function OrderCardImpl({ card }) {
   const printerStatus = usePrinterStore((s) => s.status)
   const printerConnectionType = usePrinterStore((s) => s.connectionType)
   const printerCharacteristic = usePrinterStore((s) => s.characteristic)
-  const printerNetworkHost = usePrinterStore((s) => s.networkHost)
-  const printerNetworkPort = usePrinterStore((s) => s.networkPort)
-  const printerNetworkSecure = usePrinterStore((s) => s.networkSecure)
-  const printerAndroidTransport = usePrinterStore((s) => s.androidTransport)
-  const printerAndroidMac = usePrinterStore((s) => s.androidMac)
-  const printerAndroidHost = usePrinterStore((s) => s.androidHost)
-  const printerAndroidPort = usePrinterStore((s) => s.androidPort)
+  const activePrinter = useActivePrinter()
 
   function handlePrint() {
     printCard(card, {
       status: printerStatus,
       connectionType: printerConnectionType,
       characteristic: printerCharacteristic,
-      networkHost: printerNetworkHost,
-      networkPort: printerNetworkPort,
-      networkSecure: printerNetworkSecure,
-      androidTransport: printerAndroidTransport,
-      androidMac: printerAndroidMac,
-      androidHost: printerAndroidHost,
-      androidPort: printerAndroidPort,
+      activePrinter,
     })
   }
 

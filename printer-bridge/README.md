@@ -80,6 +80,53 @@ it once.
    the bridge computer's IP address, port `8008`, check "Bridge uses
    HTTPS," and click Connect.
 
+## Multiple printers
+
+If you have more than one physical printer, you have two ways to serve
+them — pick whichever fits your setup better.
+
+**Option A: one bridge process per printer (simplest to reason about).**
+Run a separate `bridge.js` for each printer, each on its own
+`--listen-port`:
+
+```bash
+node bridge.js --printer-host 192.168.1.30 --printer-port 9100 --listen-port 8008 --cert cert.pem --key key.pem
+node bridge.js --printer-host 192.168.1.32 --printer-port 9100 --listen-port 8009 --cert cert.pem --key key.pem
+```
+
+(the same `cert.pem`/`key.pem` can be reused by both — it's just
+identifying the bridge computer, not a specific printer). In the KDS
+app, add one saved printer per bridge port — e.g. "Kitchen 1" at
+`192.168.1.17:8008` and "Kitchen 2" at `192.168.1.17:8009`. Each is its
+own process, so it needs its own certificate-trust visit
+(`https://192.168.1.17:8008/status`, then `https://192.168.1.17:8009/status`)
+and its own entry in whatever keeps it running (see "Keeping it running"
+below).
+
+**Option B: one bridge process relaying to several printers.** Give each
+printer a name with a repeated `--printer` flag instead of
+`--printer-host`/`--printer-port`:
+
+```bash
+node bridge.js --listen-port 8008 --cert cert.pem --key key.pem \
+  --printer kitchen1=192.168.1.30:9100 --printer kitchen2=192.168.1.32:9100
+```
+
+Printing to a specific one means posting to `/print/<name>` instead of
+plain `/print` (e.g. `/print/kitchen1`) — the KDS app's Settings →
+Receipt Printer does this automatically once you fill in a printer's
+"Printer name on this bridge" field when adding it there. You can also
+click "Fetch printer list from bridge" in that form instead of typing
+the name, which hits this bridge's `GET /printers` endpoint and offers
+back whatever names you configured (`{"printers":["kitchen1","kitchen2"]}`
+here). This option needs only one process, one port, and one
+certificate-trust visit per device — worth it once you have more than a
+couple of printers on the same bridge computer.
+
+Either option is fine to mix with a single-printer bridge elsewhere —
+the KDS app just sees each as a separate saved printer with its own
+address (and, for option B, its own name on that bridge).
+
 ## Alternative: using Node-RED instead of bridge.js
 
 If you already run [Node-RED](https://nodered.org/) — or would rather manage

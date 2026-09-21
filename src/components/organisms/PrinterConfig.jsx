@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { usePrinterStore } from '../../store/printerStore'
+import { usePrinterStore, useActivePrinter, generatePrinterId } from '../../store/printerStore'
 import {
   connectTestPrinter,
   formatReceiptPreview,
@@ -9,12 +9,13 @@ import {
   printTestTicket,
   TEST_CARD,
 } from '../../lib/printer'
-import { checkNetworkBridge, testNetworkConnection } from '../../lib/networkPrinter'
-import { printViaAndroidBridge } from '../../lib/androidPrintBridge'
+import { checkNetworkBridge, listBridgePrinters, testNetworkConnection } from '../../lib/networkPrinter'
 import { Button } from '../atoms/Button'
 
+const DEFAULT_BRIDGE_PORT = '8008'
+
 /**
- * Three independent things live here:
+ * Two independent things live here:
  *  - Print trigger: manual (Print button on each card) vs. automatic
  *    (fires the moment a card enters "pending", same event as the voice
  *    announcement — see PendingOrderAlerts.jsx). Works no matter what's
@@ -24,19 +25,18 @@ import { Button } from '../atoms/Button'
  *      - Bluetooth: pairs a real BLE thermal printer once so tickets go
  *        straight to it, silently, no popup — see src/lib/printer.js for
  *        the platform constraints (BLE only, never classic/SPP Bluetooth;
- *        Chrome/Edge only; needs a real button click).
- *      - Network (IP address): prints to a printer reachable over the
- *        network via a small bridge program (printer-bridge/ at the
- *        project root) — see src/lib/networkPrinter.js for why a bridge
- *        is required at all (no raw TCP sockets from a browser) and the
- *        https/mixed-content wrinkle that comes with it.
- *      - Android Print Helper: hands tickets to a native companion app
- *        (printer-service-main, alongside this repo) on THIS SAME
- *        tablet via a kdsprint:// intent — see
- *        src/lib/androidPrintBridge.js. Only useful when this page is
- *        itself running in that tablet's browser; it reaches a
- *        classic-Bluetooth printer (which Web Bluetooth above can never
- *        see) or a network printer with no separate bridge computer.
+ *        Chrome/Edge only; needs a real button click). Web Bluetooth has
+ *        no silent reconnect, so there's just one "Pair Printer" action
+ *        here rather than a saved list — a saved profile couldn't skip
+ *        the chooser anyway.
+ *      - Network Printer: prints to a printer reachable over the network
+ *        via a small bridge program (printer-bridge/ at the project
+ *        root) — see src/lib/networkPrinter.js for why a bridge is
+ *        required at all (no raw TCP sockets from a browser) and the
+ *        https/mixed-content wrinkle that comes with it. Unlike
+ *        Bluetooth, a bridge address is just a remembered host/port, so
+ *        these ARE saved as a list of named profiles — add each printer
+ *        once, then just pick "Use" on whichever one a station needs.
  *      - Test Printer: a software-only stand-in for when there's no real
  *        printer in the room. Logs what would have printed right here —
  *        also silent, no popup — so the print pipeline (including
@@ -52,35 +52,37 @@ export function PrinterConfig() {
     error,
     autoPrint,
     testPrints,
-    networkHost,
-    networkPort,
-    networkSecure,
-    androidTransport,
-    androidMac,
-    androidHost,
-    androidPort,
+    printers,
+    activePrinterId,
     setAutoPrint,
     setConnecting,
     setConnected,
     setNetworkConnected,
-    setNetworkHost,
-    setNetworkPort,
-    setNetworkSecure,
-    setAndroidTransport,
-    setAndroidMac,
-    setAndroidHost,
-    setAndroidPort,
-    setAndroidConnected,
     setError,
     disconnect,
     clearTestPrints,
+    savePrinter,
+    removePrinter,
   } = usePrinterStore()
+  const activePrinter = useActivePrinter()
+  const networkPrinters = printers.filter((p) => p.type === 'network')
+
   const [testing, setTesting] = useState(false)
-  const [connectingVia, setConnectingVia] = useState(null)
+  const [connectingId, setConnectingId] = useState(null)
   const usingTestPrinter = status === 'connected' && connectionType === 'test'
 
+  const [formOpen, setFormOpen] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [formName, setFormName] = useState('')
+  const [formHost, setFormHost] = useState('')
+  const [formPort, setFormPort] = useState(DEFAULT_BRIDGE_PORT)
+  const [formSecure, setFormSecure] = useState(true)
+  const [formPrinterName, setFormPrinterName] = useState('')
+  const [formError, setFormError] = useState(null)
+  const [bridgePrinterOptions, setBridgePrinterOptions] = useState([])
+  const [fetchingBridgeList, setFetchingBridgeList] = useState(false)
+
   async function handlePair() {
-    setConnectingVia('bluetooth')
     setConnecting()
     try {
       const { device, characteristic, serviceLabel: label } = await pairPrinter()
@@ -101,33 +103,108 @@ export function PrinterConfig() {
     setConnected(connectTestPrinter())
   }
 
-  function handleUseAndroidBridge() {
-    // No handshake possible from here (see printerStore.js) — this just
-    // records the chosen transport/address as active.
-    setAndroidConnected()
+  function resetForm() {
+    setFormName('')
+    setFormHost('')
+    setFormPort(DEFAULT_BRIDGE_PORT)
+    setFormSecure(true)
+    setFormPrinterName('')
+    setFormError(null)
+    setBridgePrinterOptions([])
   }
 
-  async function handleConnectNetwork() {
-    setConnectingVia('network')
+  function openAddForm() {
+    resetForm()
+    setEditingId(null)
+    setFormOpen(true)
+  }
+
+  function openEditForm(profile) {
+    setEditingId(profile.id)
+    setFormName(profile.name || '')
+    setFormHost(profile.host || '')
+    setFormPort(profile.port || DEFAULT_BRIDGE_PORT)
+    setFormSecure(Boolean(profile.secure))
+    setFormPrinterName(profile.printer || '')
+    setFormError(null)
+    setBridgePrinterOptions([])
+    setFormOpen(true)
+  }
+
+  function closeForm() {
+    setFormOpen(false)
+    setEditingId(null)
+  }
+
+  function handleSaveForm(e) {
+    e.preventDefault()
+    if (!formHost.trim()) {
+      setFormError("Enter the printer bridge's IP address or hostname first.")
+      return
+    }
+    savePrinter({
+      id: editingId || generatePrinterId(),
+      name: formName.trim() || formHost.trim(),
+      type: 'network',
+      host: formHost.trim(),
+      port: formPort.trim() || DEFAULT_BRIDGE_PORT,
+      secure: formSecure,
+      printer: formPrinterName.trim(),
+    })
+    closeForm()
+  }
+
+  async function handleFetchBridgePrinters() {
+    if (!formHost.trim()) {
+      setFormError("Enter the printer bridge's IP address first.")
+      return
+    }
+    setFetchingBridgeList(true)
+    setFormError(null)
+    try {
+      const names = await listBridgePrinters({ host: formHost, port: formPort, secure: formSecure })
+      setBridgePrinterOptions(names)
+      if (names.length === 0) {
+        setFormError(
+          'Reached the bridge, but it has no named printers configured — leave "Printer name" blank if it only relays to one.',
+        )
+      }
+    } catch (err) {
+      setFormError(err?.message || 'Could not reach the bridge.')
+    } finally {
+      setFetchingBridgeList(false)
+    }
+  }
+
+  async function handleUseNetworkPrinter(profile) {
+    setConnectingId(profile.id)
     setConnecting()
     try {
-      await checkNetworkBridge({ host: networkHost, port: networkPort, secure: networkSecure })
-      setNetworkConnected()
+      await checkNetworkBridge({ host: profile.host, port: profile.port, secure: profile.secure })
+      setNetworkConnected(profile.id)
     } catch (err) {
       setError(err?.message || 'Could not reach the printer bridge.')
+    } finally {
+      setConnectingId(null)
     }
+  }
+
+  function handleRemovePrinter(id) {
+    if (activePrinterId === id) disconnect()
+    if (editingId === id) closeForm()
+    removePrinter(id)
   }
 
   async function handleTestPrint() {
     setTesting(true)
     try {
       if (connectionType === 'network') {
-        await testNetworkConnection({ host: networkHost, port: networkPort, secure: networkSecure })
-      } else if (connectionType === 'android') {
-        await printViaAndroidBridge(
-          { transport: androidTransport, mac: androidMac, host: androidHost, port: androidPort },
-          TEST_CARD,
-        )
+        await testNetworkConnection({
+          host: activePrinter?.host,
+          port: activePrinter?.port,
+          secure: activePrinter?.secure,
+          printer: activePrinter?.printer,
+        })
       } else {
         const { characteristic } = usePrinterStore.getState()
         if (connectionType === 'test' || isTestPrinterCharacteristic(characteristic)) {
@@ -166,14 +243,11 @@ export function PrinterConfig() {
         <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           <span>
             {connectionType === 'network' &&
-              `Connected: ${networkHost}:${networkPort} (network printer bridge)`}
-            {connectionType === 'android' &&
-              (androidTransport === 'bluetooth'
-                ? `Connected: Android print helper → Bluetooth ${androidMac}`
-                : `Connected: Android print helper → ${androidHost}:${androidPort}`)}
+              `Connected: ${activePrinter?.name || 'Network Printer'} (${activePrinter?.host}:${activePrinter?.port}${
+                activePrinter?.printer ? ` → ${activePrinter.printer}` : ''
+              })`}
             {connectionType !== 'network' &&
-              connectionType !== 'android' &&
-              `Connected: ${deviceName}${serviceLabel ? ` (${serviceLabel})` : ''}`}
+              `Connected: ${activePrinter?.name ? `${activePrinter.name} — ` : ''}${deviceName}${serviceLabel ? ` (${serviceLabel})` : ''}`}
           </span>
           <button type="button" onClick={disconnect} className="text-xs font-medium underline">
             Disconnect
@@ -190,7 +264,7 @@ export function PrinterConfig() {
                   reached from a browser at all and won't show up in the chooser.
                 </p>
                 <Button type="button" onClick={handlePair} disabled={status === 'connecting'}>
-                  {status === 'connecting' && connectingVia === 'bluetooth'
+                  {status === 'connecting' && connectingId === null
                     ? 'Connecting…'
                     : deviceName
                       ? `Reconnect to ${deviceName}`
@@ -205,119 +279,140 @@ export function PrinterConfig() {
             )}
           </div>
 
-          <div className="space-y-2 border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Network Printer (IP address)</p>
-            <p className="text-xs text-gray-400">
-              Print to a printer reachable over the network, via a small bridge program you run on a
-              computer on that same network — browsers can't open a direct connection to a printer's
-              network port, so this needs a bridge in between. See the{' '}
-              <code className="font-mono">printer-bridge</code> folder in the project for that bridge
-              and setup steps — including the extra step needed if this app is loaded over https
-              (it almost certainly is), since an https page can't reach a plain http bridge at all.
-            </p>
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="text"
-                value={networkHost}
-                onChange={(e) => setNetworkHost(e.target.value)}
-                placeholder="Bridge IP, e.g. 192.168.1.50"
-                aria-label="Printer bridge IP address or hostname"
-                className="w-48 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-              <input
-                type="text"
-                value={networkPort}
-                onChange={(e) => setNetworkPort(e.target.value)}
-                placeholder="Port"
-                aria-label="Printer bridge port"
-                className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-              <label className="flex items-center gap-1.5 text-xs text-gray-500">
-                <input
-                  type="checkbox"
-                  checked={networkSecure}
-                  onChange={(e) => setNetworkSecure(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded border-gray-300"
-                />
-                Bridge uses HTTPS
-              </label>
+          <div className="space-y-3 border-t border-gray-100 pt-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Network Printers</p>
+              <p className="mt-1 text-xs text-gray-400">
+                Printers reachable over the network, each via a small bridge program you run on a
+                computer on that same network — browsers can't open a direct connection to a
+                printer's network port, so this needs a bridge in between (see the{' '}
+                <code className="font-mono">printer-bridge</code> folder in the project). Add each
+                printer's bridge address once below, then just click "Use" to switch stations
+                between them.
+              </p>
             </div>
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleConnectNetwork}
-              disabled={status === 'connecting' || !networkHost.trim()}
-            >
-              {status === 'connecting' && connectingVia === 'network' ? 'Connecting…' : 'Connect'}
-            </Button>
-          </div>
 
-          <div className="space-y-2 border-t border-gray-100 pt-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Android Print Helper</p>
-            <p className="text-xs text-gray-400">
-              Only useful when this board is itself open in an Android tablet's browser: hands each
-              ticket to a small companion app on that same tablet (see{' '}
-              <code className="font-mono">printer-service-main</code> in the project), which reaches
-              the printer directly — a classic-Bluetooth printer Web Bluetooth above can't see at all,
-              or a network printer with no separate bridge computer.
-            </p>
-            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-600">
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="android-transport"
-                  checked={androidTransport === 'bluetooth'}
-                  onChange={() => setAndroidTransport('bluetooth')}
-                />
-                Bluetooth
-              </label>
-              <label className="flex items-center gap-1.5">
-                <input
-                  type="radio"
-                  name="android-transport"
-                  checked={androidTransport === 'network'}
-                  onChange={() => setAndroidTransport('network')}
-                />
-                Network
-              </label>
-            </div>
-            {androidTransport === 'bluetooth' ? (
-              <input
-                type="text"
-                value={androidMac}
-                onChange={(e) => setAndroidMac(e.target.value)}
-                placeholder="Printer Bluetooth address, e.g. AA:BB:CC:DD:EE:FF"
-                aria-label="Printer Bluetooth address"
-                className="w-64 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-              />
-            ) : (
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  type="text"
-                  value={androidHost}
-                  onChange={(e) => setAndroidHost(e.target.value)}
-                  placeholder="Printer IP, e.g. 192.168.1.50"
-                  aria-label="Android print helper printer IP address"
-                  className="w-48 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                />
-                <input
-                  type="text"
-                  value={androidPort}
-                  onChange={(e) => setAndroidPort(e.target.value)}
-                  placeholder="Port"
-                  aria-label="Android print helper printer port"
-                  className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                />
-              </div>
+            {networkPrinters.length > 0 && (
+              <ul className="space-y-1.5">
+                {networkPrinters.map((p) => (
+                  <li
+                    key={p.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2"
+                  >
+                    <div>
+                      <p className="text-sm font-medium text-gray-700">{p.name}</p>
+                      <p className="text-xs text-gray-400">
+                        {p.host}:{p.port}
+                        {p.printer ? ` → ${p.printer}` : ''}
+                        {p.secure ? ' · https' : ' · http'}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        className="px-2.5 py-1 text-xs"
+                        onClick={() => handleUseNetworkPrinter(p)}
+                        disabled={status === 'connecting'}
+                      >
+                        {status === 'connecting' && connectingId === p.id ? 'Connecting…' : 'Use'}
+                      </Button>
+                      <button
+                        type="button"
+                        onClick={() => openEditForm(p)}
+                        className="px-1.5 text-xs font-medium text-gray-400 underline hover:text-gray-600"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemovePrinter(p.id)}
+                        className="px-1.5 text-xs font-medium text-gray-400 underline hover:text-red-500"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
             )}
-            <Button
-              type="button"
-              variant="secondary"
-              onClick={handleUseAndroidBridge}
-              disabled={androidTransport === 'bluetooth' ? !androidMac.trim() : !androidHost.trim()}
-            >
-              Use Android Print Helper
-            </Button>
+
+            {formOpen ? (
+              <form onSubmit={handleSaveForm} className="space-y-2 rounded-lg border border-gray-200 p-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="Name, e.g. Kitchen 1"
+                    aria-label="Printer name"
+                    className="w-40 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={formHost}
+                    onChange={(e) => setFormHost(e.target.value)}
+                    placeholder="Bridge IP, e.g. 192.168.1.17"
+                    aria-label="Printer bridge IP address or hostname"
+                    className="w-48 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={formPort}
+                    onChange={(e) => setFormPort(e.target.value)}
+                    placeholder="Port"
+                    aria-label="Printer bridge port"
+                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                  <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                    <input
+                      type="checkbox"
+                      checked={formSecure}
+                      onChange={(e) => setFormSecure(e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-gray-300"
+                    />
+                    Bridge uses HTTPS
+                  </label>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    list="bridge-printer-options"
+                    value={formPrinterName}
+                    onChange={(e) => setFormPrinterName(e.target.value)}
+                    placeholder="Printer name on this bridge (leave blank if it relays to just one)"
+                    aria-label="Printer name on this bridge"
+                    className="w-80 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                  />
+                  <datalist id="bridge-printer-options">
+                    {bridgePrinterOptions.map((name) => (
+                      <option key={name} value={name} />
+                    ))}
+                  </datalist>
+                  <button
+                    type="button"
+                    onClick={handleFetchBridgePrinters}
+                    disabled={fetchingBridgeList || !formHost.trim()}
+                    className="text-xs font-medium text-brand underline disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {fetchingBridgeList ? 'Checking…' : 'Fetch printer list from bridge'}
+                  </button>
+                </div>
+                {formError && <p className="text-xs text-amber-700">{formError}</p>}
+                <div className="flex items-center gap-2 pt-1">
+                  <Button type="submit" className="px-3 py-1.5 text-xs">
+                    {editingId ? 'Save changes' : 'Add printer'}
+                  </Button>
+                  <button type="button" onClick={closeForm} className="text-xs font-medium text-gray-400 underline">
+                    Cancel
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <Button type="button" variant="secondary" onClick={openAddForm} className="px-3 py-1.5 text-xs">
+                + Add a network printer
+              </Button>
+            )}
           </div>
 
           <div className="border-t border-gray-100 pt-4">

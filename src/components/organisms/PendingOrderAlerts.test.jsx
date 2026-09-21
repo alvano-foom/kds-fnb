@@ -86,13 +86,7 @@ describe('PendingOrderAlerts', () => {
       status: 'connected',
       connectionType: null,
       characteristic: {},
-      networkHost: '',
-      networkPort: '8008',
-      networkSecure: false,
-      androidTransport: 'bluetooth',
-      androidMac: '',
-      androidHost: '',
-      androidPort: '9100',
+      activePrinter: null,
     })
   })
 })
