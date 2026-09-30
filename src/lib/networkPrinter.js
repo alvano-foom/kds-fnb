@@ -43,6 +43,24 @@ const MIXED_CONTENT_HINT =
   'self-signed certificate). Otherwise check the bridge is running, the IP/port are correct, and this ' +
   'device is on the same network as it.'
 
+// Same underlying cause the generic hint above already covers, but this is
+// specifically the single most common reason a *secure* bridge fails on a
+// device that hasn't been used with it before: a self-signed certificate's
+// trust exception has to be granted by a direct browser visit — a page's
+// own fetch() can't trigger or pass through that "unsafe, proceed anyway"
+// prompt the way a real navigation can. Surfaced separately (only when
+// secure=true) since it's the answer often enough to be worth naming
+// outright rather than leaving it as one clause inside the general hint.
+function certTrustHint({ host, port }) {
+  const url = `https://${(host || '').trim()}${port ? `:${port}` : ''}/status`
+  return (
+    `If this bridge uses a self-signed certificate, this device likely hasn't trusted it yet — open ` +
+    `${url} directly in this browser first, click through the "connection isn't private" warning, and ` +
+    `confirm it just says ok. That one-time visit is what lets this app's own connection attempts to ` +
+    `the same address succeed afterward.`
+  )
+}
+
 // Deliberately permissive — a bridge on a LAN is commonly addressed by a
 // bare IPv4 address, but nothing stops someone running it behind a
 // hostname (a router's local DNS, a Tailscale name, etc.), so this only
@@ -75,7 +93,7 @@ function requireHost(config) {
   }
 }
 
-async function request(url, options) {
+async function request(url, options, config) {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), TIMEOUT_MS)
   try {
@@ -91,11 +109,15 @@ async function request(url, options) {
         `No response from ${url} within ${TIMEOUT_MS / 1000}s — check the bridge is running and the IP/port are correct.`,
       )
     }
-    // A generic "Failed to fetch" TypeError is what both mixed-content
-    // blocking and a CORS rejection look like from here — the browser
-    // deliberately hides which one actually happened, so the message has
-    // to cover both rather than pretend to know which one it was.
-    throw new NetworkPrinterError('unreachable', `Could not reach ${url}. ${MIXED_CONTENT_HINT}`)
+    // A generic "Failed to fetch" TypeError is what mixed-content blocking,
+    // a CORS rejection, and an untrusted self-signed certificate all look
+    // like from here — the browser deliberately hides which one actually
+    // happened. When this was an https request, lead with the cert-trust
+    // explanation specifically, since it's the single most common cause on
+    // a device that hasn't used this bridge before; keep the general hint
+    // too, since it's still one of the other two possible causes.
+    const hint = config?.secure ? `${certTrustHint(config)} ${MIXED_CONTENT_HINT}` : MIXED_CONTENT_HINT
+    throw new NetworkPrinterError('unreachable', `Could not reach ${url}. ${hint}`)
   } finally {
     clearTimeout(timer)
   }
@@ -110,17 +132,21 @@ async function request(url, options) {
  */
 export async function printViaNetwork(config, card) {
   requireHost(config)
-  return request(buildUrl(config, PRINT_PATH), {
-    method: 'POST',
-    body: buildEscPosReceipt(card),
-    headers: { 'Content-Type': 'application/octet-stream' },
-  })
+  return request(
+    buildUrl(config, PRINT_PATH),
+    {
+      method: 'POST',
+      body: buildEscPosReceipt(card),
+      headers: { 'Content-Type': 'application/octet-stream' },
+    },
+    config,
+  )
 }
 
-/** Lightweight reachability check for the "Connect" button — hits the bridge's own /status, doesn't print anything or touch the printer. Bridge-level (not printer-specific) even when the bridge relays to several printers. */
+/** Lightweight reachability check for the "Connect" button (and the settings form's automatic check as you type — see PrinterConfig.jsx) — hits the bridge's own /status, doesn't print anything or touch the printer. Bridge-level (not printer-specific) even when the bridge relays to several printers. */
 export async function checkNetworkBridge(config) {
   requireHost(config)
-  return request(buildUrl(config, STATUS_PATH), { method: 'GET' })
+  return request(buildUrl(config, STATUS_PATH), { method: 'GET' }, config)
 }
 
 /** Same ticket the Bluetooth/Test Printer "Send test print" buttons use, sent over the network path instead. */

@@ -2,10 +2,13 @@
   "name": "kds-print-bridge",
   "private": true,
   "version": "1.0.0",
-  "description": "Standalone HTTP-to-TCP relay for the KDS app's Network Printer (IP address) option. No dependencies — plain Node.js.",
+  "description": "Standalone HTTP-to-TCP relay for the KDS app's Network Printer (IP address) option. Core relay is plain Node.js with no dependencies; bonjour-service is an optional dependency for the .local mDNS hostname feature (see README.md) — the relay itself runs fine without ever running npm install.",
   "type": "commonjs",
   "main": "bridge.js",
   "scripts": {
     "start": "node bridge.js"
+  },
+  "dependencies": {
+    "bonjour-service": "^1.4.4"
   }
 }

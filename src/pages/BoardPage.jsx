@@ -3,6 +3,7 @@ import { AppShell } from '../components/templates/AppShell'
 import { KanbanBoard } from '../components/organisms/KanbanBoard'
 import { PendingOrderAlerts } from '../components/organisms/PendingOrderAlerts'
 import { ConnectionStatus } from '../components/molecules/ConnectionStatus'
+import { KitchenSessionBadge } from '../components/molecules/KitchenSessionBadge'
 import { Button } from '../components/atoms/Button'
 import { Spinner } from '../components/atoms/Spinner'
 import { useTenantStore } from '../store/tenantStore'
@@ -25,10 +26,18 @@ export function BoardPage() {
     <AppShell
       title={tenantConfig.data?.name ?? 'Kitchen Display'}
       logoUrl={tenantConfig.data?.logo_url}
-      leftSlot={<span className="truncate text-sm text-brand-contrast/80">{companyName}</span>}
+      leftSlot={
+        <div className="flex min-w-0 flex-col">
+          <span className="truncate text-sm text-brand-contrast/80">{companyName}</span>
+          <KitchenSessionBadge />
+        </div>
+      }
       rightSlot={
         <>
           <ConnectionStatus status={status} />
+          <Button variant="ghost" onClick={() => navigate('/production')}>
+            Production
+          </Button>
           <Button variant="ghost" onClick={() => navigate('/config')}>
             Settings
           </Button>

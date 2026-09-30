@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { usePrinterStore, useActivePrinter, generatePrinterId } from '../../store/printerStore'
 import {
   connectTestPrinter,
@@ -9,10 +9,16 @@ import {
   printTestTicket,
   TEST_CARD,
 } from '../../lib/printer'
-import { checkNetworkBridge, listBridgePrinters, testNetworkConnection } from '../../lib/networkPrinter'
+import {
+  checkNetworkBridge,
+  isLikelyValidHost,
+  listBridgePrinters,
+  testNetworkConnection,
+} from '../../lib/networkPrinter'
 import { Button } from '../atoms/Button'
 
 const DEFAULT_BRIDGE_PORT = '8008'
+const AUTO_CHECK_DEBOUNCE_MS = 700
 
 /**
  * Two independent things live here:
@@ -82,6 +88,42 @@ export function PrinterConfig() {
   const [bridgePrinterOptions, setBridgePrinterOptions] = useState([])
   const [fetchingBridgeList, setFetchingBridgeList] = useState(false)
 
+  // Automatic reachability check: pings the bridge's /status as soon as a
+  // plausible host + port have been typed, so someone filling in the form
+  // finds out right away whether the bridge answers — instead of only
+  // learning that after clicking "Add printer" and then "Use". This is
+  // purely informational: it never blocks Add/Save, and the manual "Use"
+  // button (and "Fetch printer list") still do their own real check too,
+  // since this one can go stale the moment a field changes again.
+  const [autoCheck, setAutoCheck] = useState({ status: 'idle', message: '' })
+  const autoCheckGeneration = useRef(0)
+
+  useEffect(() => {
+    if (!formOpen) return
+    const host = formHost.trim()
+    const port = formPort.trim() || DEFAULT_BRIDGE_PORT
+    if (!isLikelyValidHost(host)) {
+      setAutoCheck({ status: 'idle', message: '' })
+      return
+    }
+    const generation = ++autoCheckGeneration.current
+    setAutoCheck({ status: 'checking', message: '' })
+    const timer = setTimeout(async () => {
+      try {
+        await checkNetworkBridge({ host, port, secure: formSecure })
+        if (autoCheckGeneration.current === generation) {
+          setAutoCheck({ status: 'ok', message: 'Bridge reachable.' })
+        }
+      } catch (err) {
+        if (autoCheckGeneration.current === generation) {
+          setAutoCheck({ status: 'error', message: err?.message || 'Could not reach the bridge.' })
+        }
+      }
+    }, AUTO_CHECK_DEBOUNCE_MS)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately re-runs on every keystroke in these three fields, debounced above
+  }, [formOpen, formHost, formPort, formSecure])
+
   async function handlePair() {
     setConnecting()
     try {
@@ -111,6 +153,7 @@ export function PrinterConfig() {
     setFormPrinterName('')
     setFormError(null)
     setBridgePrinterOptions([])
+    setAutoCheck({ status: 'idle', message: '' })
   }
 
   function openAddForm() {
@@ -128,6 +171,7 @@ export function PrinterConfig() {
     setFormPrinterName(profile.printer || '')
     setFormError(null)
     setBridgePrinterOptions([])
+    setAutoCheck({ status: 'idle', message: '' })
     setFormOpen(true)
   }
 
@@ -288,7 +332,9 @@ export function PrinterConfig() {
                 printer's network port, so this needs a bridge in between (see the{' '}
                 <code className="font-mono">printer-bridge</code> folder in the project). Add each
                 printer's bridge address once below, then just click "Use" to switch stations
-                between them.
+                between them. The address can be a plain IP or, if the bridge was started with mDNS
+                enabled, a stable name like <code className="font-mono">kds-bridge.local</code> —
+                worth using so this doesn't break if the bridge computer's IP ever changes.
               </p>
             </div>
 
@@ -352,9 +398,9 @@ export function PrinterConfig() {
                     type="text"
                     value={formHost}
                     onChange={(e) => setFormHost(e.target.value)}
-                    placeholder="Bridge IP, e.g. 192.168.1.17"
+                    placeholder="Bridge IP or name, e.g. 192.168.1.17 or kds-bridge.local"
                     aria-label="Printer bridge IP address or hostname"
-                    className="w-48 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                    className="w-64 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                   />
                   <input
                     type="text"
@@ -374,6 +420,22 @@ export function PrinterConfig() {
                     Bridge uses HTTPS
                   </label>
                 </div>
+                {autoCheck.status !== 'idle' && (
+                  <p
+                    className={
+                      'text-xs ' +
+                      (autoCheck.status === 'checking'
+                        ? 'text-gray-400'
+                        : autoCheck.status === 'ok'
+                          ? 'text-emerald-600'
+                          : 'text-amber-700')
+                    }
+                  >
+                    {autoCheck.status === 'checking' && 'Checking the bridge…'}
+                    {autoCheck.status === 'ok' && '✓ Bridge reachable.'}
+                    {autoCheck.status === 'error' && `✗ ${autoCheck.message}`}
+                  </p>
+                )}
                 <div className="flex flex-wrap items-center gap-2">
                   <input
                     type="text"

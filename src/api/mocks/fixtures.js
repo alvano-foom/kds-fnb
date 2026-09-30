@@ -131,3 +131,80 @@ export function findLine(lineId) {
   }
   return null
 }
+
+// ---------------------------------------------------------------------------
+// Kitchen session / production / scrap — mocks the real foom_fnb_api
+// endpoints under /kitchen and /stock (see the API docs shared 2026-09-30).
+// Kept in the same fixtures file as the order-board data above so a dev
+// touching this file sees both halves of the mock backend together.
+// ---------------------------------------------------------------------------
+
+/** Stand-in for hr.employee + its Kode Absensi field (the real field name is configurable — see foom_fnb_api.employee_code_field). */
+export const mockKitchenEmployees = [
+  { id: 'e1', name: 'Bisma Fauzan', job_title: 'Line Cook', department: 'Kitchen', code: 'F102345', company_id: 'c1' },
+  { id: 'e2', name: 'Siti Aminah', job_title: 'Head Cook', department: 'Kitchen', code: 'F100120', company_id: 'c1' },
+  { id: 'e3', name: 'Rudi Hartono', job_title: 'Line Cook', department: 'Kitchen', code: 'F200560', company_id: 'c2' },
+]
+
+/**
+ * Stand-in for GET /stock's product list. `available_qty` deliberately
+ * limits "Sate Matang" to exercise the real 409 done_failed path (not
+ * enough components) so the Production page's "needs attention" recovery
+ * flow — retry / cancel — actually gets tested, not just the happy path.
+ */
+export const mockKitchenProducts = [
+  { product_id: 'p1', name: 'Nasi Goreng Spesial', uom: 'Portion', kind: 'manufacture', available_qty: 50, is_available: true },
+  { product_id: 'p2', name: 'Ayam Bakar', uom: 'Portion', kind: 'manufacture', available_qty: 30, is_available: true },
+  { product_id: 'p3', name: 'Sate Matang', uom: 'Portion', kind: 'manufacture', available_qty: 3, is_available: true },
+  { product_id: 'p4', name: 'Es Teh Manis', uom: 'Cup', kind: 'stock', available_qty: 100, is_available: true },
+  { product_id: 'p5', name: 'Rendang Daging', uom: 'Portion', kind: 'manufacture', available_qty: 0, is_available: false },
+]
+
+/** @type {Map<string, object>} sessions keyed by id */
+export let kitchenSessions = new Map()
+/** company_id -> currently open session id (at most one, per the real API's rule) */
+export let openSessionByCompany = new Map()
+/** production_id -> { sessionId } for O(1) lookup by /kitchen/productions/:id/state */
+export let productionIndex = new Map()
+
+let kitchenSessionCounter = 0
+let productionCounter = 0
+
+export function resetKitchenMockData() {
+  kitchenSessions = new Map()
+  openSessionByCompany = new Map()
+  productionIndex = new Map()
+  kitchenSessionCounter = 0
+  productionCounter = 0
+}
+
+export function findEmployeeByCode(code) {
+  return mockKitchenEmployees.find((e) => e.code === code) || null
+}
+
+export function findKitchenProduct(productId) {
+  return mockKitchenProducts.find((p) => p.product_id === productId) || null
+}
+
+export function nextKitchenSessionId() {
+  kitchenSessionCounter += 1
+  return `ks${kitchenSessionCounter}`
+}
+
+export function nextKitchenSessionName() {
+  return `KIT/202609/${String(kitchenSessionCounter).padStart(4, '0')}`
+}
+
+export function nextProductionId() {
+  productionCounter += 1
+  return `mo${productionCounter}`
+}
+
+export function nextProductionName() {
+  return `WH/MO/${String(productionCounter).padStart(5, '0')}`
+}
+
+/** Trims the full session record down to what /kitchen/whoami and list endpoints show — same shape either way, just without forcing every caller to know which fields exist. */
+export function summarizeKitchenSession(session) {
+  return session
+}

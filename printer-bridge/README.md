@@ -25,10 +25,74 @@ request from the KDS app, and relays the bytes to the printer's TCP port.
 - A computer that's always on and on the same network as the printer —
   a spare PC, a Raspberry Pi, or even the same machine the KDS tablet
   talks to. It needs [Node.js](https://nodejs.org) installed (any
-  reasonably recent version) — nothing else, no `npm install` required.
+  reasonably recent version) — nothing else, no `npm install` required
+  for the core relay (see "Stable hostname (mDNS)" below if you want that
+  optional feature).
 - The printer's IP address and raw print port (check the printer's own
   network settings page or its manual — port **9100** is the default for
   the vast majority of network thermal/label printers).
+
+## Stable hostname (mDNS) — so the bridge's address doesn't drift
+
+Every example below uses a raw IP address (`192.168.1.20`) for the bridge
+computer itself. That address usually comes from DHCP, which means it can
+silently change — a router reboot, the bridge computer being off for a
+while and losing its lease, a new device joining the network — and when it
+does, every tablet's saved "Bridge IP" breaks at once with no obvious cause.
+
+`bridge.js` solves this by advertising itself over mDNS (the same
+technology behind AirPrint and Chromecast discovery) as a fixed name —
+`kds-bridge.local` by default — instead of relying only on the IP staying
+put. This is **on by default** and needs no flags:
+
+```bash
+node bridge.js --printer-host 192.168.1.20 --printer-port 9100 --listen-port 8008
+```
+
+will log a line like:
+
+```
+Also advertising http://kds-bridge.local:8008 via mDNS. ...
+```
+
+Once you see that line, use `kds-bridge.local` (or `https://kds-bridge.local:8008`
+if you're running with `--cert`/`--key`) in the KDS app's "Bridge IP" field
+instead of the numeric IP. If the bridge computer's IP changes later, the
+name keeps resolving and nothing in the KDS app needs to be touched.
+
+**Enabling it (one-time):** the mDNS piece uses the optional
+`bonjour-service` package. If you see `mDNS advertising skipped —
+bonjour-service isn't installed` in the bridge's log, run `npm install`
+once in this folder (`printer-bridge/`) and restart the bridge — the core
+print relay works identically with or without this step, so it's safe to
+skip entirely and just use the IP address instead.
+
+**Flags:**
+- `--mdns-name <name>` — advertise a name other than the default
+  `kds-bridge` (becomes `<name>.local`). **Required** if you're running
+  more than one bridge process on the same computer (see "Multiple
+  printers" → Option A below) — give each its own name so they don't
+  collide.
+- `--no-mdns` — disable mDNS advertising entirely (falls back to IP-only,
+  same as not having `bonjour-service` installed).
+
+**Real compatibility caveats — please read before relying on this alone:**
+`.local` name resolution is a real feature, not universally supported:
+- **macOS/iOS** and most **Linux** (with `avahi`) resolve `.local` names
+  out of the box — no extra software needed.
+- **Windows** needs Bonjour Print Services or iTunes installed for `.local`
+  names to resolve at all. Plain Windows, with neither installed, will not
+  resolve `kds-bridge.local`.
+- **Android/Chrome** support is inconsistent in practice, and kitchen
+  tablets are very often Android. Test `kds-bridge.local` on your actual
+  tablets before switching over — if it doesn't resolve there, use the
+  bridge computer's IP address instead (or set up a DHCP reservation /
+  static IP for it on your router, which sidesteps the drift problem a
+  different way).
+
+If mDNS doesn't work on a given device, everything else in this README
+still applies unchanged — just use the numeric IP address for that device
+instead of the `.local` name.
 
 ## Quick start (same network, no HTTPS)
 
@@ -101,7 +165,10 @@ app, add one saved printer per bridge port — e.g. "Kitchen 1" at
 own process, so it needs its own certificate-trust visit
 (`https://192.168.1.17:8008/status`, then `https://192.168.1.17:8009/status`)
 and its own entry in whatever keeps it running (see "Keeping it running"
-below).
+below). If you're using the mDNS stable-hostname feature (see above),
+give each process its own `--mdns-name` (e.g. `--mdns-name kitchen1`,
+`--mdns-name kitchen2`) — otherwise both processes try to advertise the
+same `kds-bridge.local` name and collide.
 
 **Option B: one bridge process relaying to several printers.** Give each
 printer a name with a repeated `--printer` flag instead of

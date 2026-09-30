@@ -8,6 +8,8 @@ import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
 import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
 import { usePrinterStore } from '../store/printerStore'
 import { useErrorLogStore } from '../store/errorLogStore'
+import { useKitchenSessionStore } from '../store/kitchenSessionStore'
+import { resetKitchenMockData } from '../api/mocks/fixtures'
 
 // jsdom has no SpeechSynthesis implementation. A passive stub keeps the
 // TextToSpeech component's SUPPORTED check true across the suite;
@@ -53,6 +55,8 @@ afterEach(() => {
     activePrinterId: null,
   })
   useErrorLogStore.setState({ entries: [] })
+  useKitchenSessionStore.setState({ session: null, employee: null, companyId: null })
+  resetKitchenMockData()
 })
 
 afterAll(() => server.close())

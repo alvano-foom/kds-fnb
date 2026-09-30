@@ -41,6 +41,15 @@
 // --cert/--key (see README.md in this folder for how to generate a free
 // self-signed certificate in two commands) unless the KDS app itself is
 // being served over plain http on your local network.
+//
+// mDNS (.local hostname) — optional, off only if bonjour-service isn't
+// installed or --no-mdns is passed. Solves a different problem than the
+// HTTPS bit above: a raw IP address (192.168.1.30) can silently change if
+// this computer ever gets a new DHCP lease, breaking every tablet's saved
+// printer entry at once. Advertising a fixed name like kds-bridge.local
+// means the KDS app's "Bridge IP" field can hold that name instead of a
+// number that might drift. See README.md for real compatibility caveats
+// before relying on this alone — it is not equally supported everywhere.
 'use strict'
 
 const http = require('http')
@@ -86,6 +95,14 @@ const KEY_PATH = args.key || process.env.BRIDGE_KEY
 // (e.g. https://kds-omega.vercel.app) once things work, so only that
 // site's pages can POST tickets to this bridge.
 const ALLOW_ORIGIN = args['allow-origin'] || process.env.ALLOW_ORIGIN || '*'
+const MDNS_DISABLED = Boolean(args['no-mdns'])
+// Sanitized to what a DNS label actually allows — a name typed with spaces
+// or dots would otherwise silently fail to resolve as one host label.
+const MDNS_NAME = String(args['mdns-name'] || process.env.MDNS_NAME || 'kds-bridge')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9-]+/g, '-')
+  .replace(/^-+|-+$/g, '') || 'kds-bridge'
 
 // name -> { host, port }. Populated below from either the legacy single-
 // printer flags (registered as "default", so old setups and old saved
@@ -224,6 +241,61 @@ server.on('clientError', (err, socket) => {
   if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n')
 })
 
+// Optional: advertise a fixed <name>.local hostname over mDNS, so the KDS
+// app's "Bridge IP" field can hold a name that won't drift instead of a
+// raw IP that can. Wrapped defensively end to end — a machine with no
+// multicast support, a blocked UDP port, or a skipped `npm install`
+// (bonjour-service isn't a hard requirement, see package.json) should
+// degrade to "no mDNS" with one clear log line, never crash the relay
+// that's actually doing the real work.
+let mdnsInstance = null
+function startMdns() {
+  if (MDNS_DISABLED) {
+    console.log('mDNS advertising skipped (--no-mdns given).')
+    return
+  }
+  let Bonjour
+  try {
+    ;({ Bonjour } = require('bonjour-service'))
+  } catch {
+    console.log(
+      'mDNS advertising skipped — bonjour-service isn\'t installed. Optional: run `npm install` once ' +
+        'in this folder to enable it. The bridge works exactly the same without it, by IP address.',
+    )
+    return
+  }
+  const scheme = CERT_PATH ? 'https' : 'http'
+  try {
+    mdnsInstance = new Bonjour(undefined, (err) => {
+      console.error('mDNS error (non-fatal, relay is unaffected):', err.message)
+    })
+    mdnsInstance.publish({
+      name: MDNS_NAME,
+      host: `${MDNS_NAME}.local`,
+      port: LISTEN_PORT,
+      type: scheme,
+    })
+    console.log(
+      `Also advertising ${scheme}://${MDNS_NAME}.local:${LISTEN_PORT} via mDNS. Works out of the box on ` +
+        'macOS/iOS and most Linux; Windows needs Bonjour Print Services (or iTunes) installed for the ' +
+        'name to resolve at all, and Android/Chrome support is inconsistent — test on your actual ' +
+        'kitchen tablets before relying on this instead of a fixed IP. Running more than one bridge ' +
+        'process on this same computer? Give each a different --mdns-name so they don\'t collide.',
+    )
+  } catch (err) {
+    console.error('Could not start mDNS advertising (non-fatal, relay is unaffected):', err.message)
+    mdnsInstance = null
+  }
+}
+
+function stopMdns(callback) {
+  if (!mdnsInstance) return callback()
+  mdnsInstance.unpublishAll(() => {
+    mdnsInstance.destroy()
+    callback()
+  })
+}
+
 server.listen(LISTEN_PORT, () => {
   const scheme = CERT_PATH ? 'https' : 'http'
   console.log(`Print bridge listening on ${scheme}://0.0.0.0:${LISTEN_PORT}`)
@@ -235,4 +307,14 @@ server.listen(LISTEN_PORT, () => {
         'reach this bridge at all (blocked as mixed content) — see README.md.',
     )
   }
+  startMdns()
 })
+
+// Send an immediate mDNS "goodbye" on shutdown instead of waiting out the
+// record TTL, so a quick restart doesn't leave a stale advertisement
+// answering for a few minutes after the process is actually gone.
+for (const signal of ['SIGINT', 'SIGTERM']) {
+  process.on(signal, () => {
+    stopMdns(() => process.exit(0))
+  })
+}
