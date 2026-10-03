@@ -37,7 +37,7 @@ async function attendancePost(path, body) {
       body: JSON.stringify(body),
     })
   } catch {
-    throw new AttendanceError(0, 'network_error', 'Could not reach the attendance service.')
+    throw new AttendanceError(0, 'network_error', 'Could not reach the attendance service (network error or blocked by CORS)')
   }
   const data = await res.json().catch(() => null)
   // Errors look like {ok:false, error, message}; `disabled` even comes back as HTTP 200 — branch on `ok`, not status.

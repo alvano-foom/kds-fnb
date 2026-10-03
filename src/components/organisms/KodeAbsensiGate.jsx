@@ -143,7 +143,7 @@ export function KodeAbsensiGate() {
             {loadShifts.isPending && <p className="text-xs text-gray-400">Loading your shifts…</p>}
             {loadShifts.isError && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                Couldn't load shifts: {loadShifts.error?.message}. You can still type the shift name.
+                Couldn't load shifts: {(loadShifts.error?.message ?? '').replace(/\.$/, '')}. You can still type the shift name.
               </p>
             )}
             {hasShifts && pickedShift?.tasks?.length > 0 && (
