@@ -220,6 +220,60 @@ describe('PrinterConfig', () => {
       expect(screen.queryByText('Kitchen 1')).not.toBeInTheDocument()
     })
 
+    it('keeps the port and HTTPS fields collapsed behind "Advanced" by default, pre-filled with the bridge default', async () => {
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /\+ add a network printer/i }))
+
+      expect(screen.queryByLabelText(/printer bridge port/i)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /advanced \(port 8008, https\)/i })).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: /advanced \(port 8008, https\)/i }))
+      expect(screen.getByLabelText(/printer bridge port/i)).toHaveValue('8008')
+    })
+
+    it('opens Advanced automatically when editing a printer already on a non-default port', async () => {
+      usePrinterStore.setState({
+        printers: [{ id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8009', secure: true, printer: '' }],
+      })
+      const user = userEvent.setup()
+      render(<PrinterConfig />)
+
+      await user.click(screen.getByRole('button', { name: /^edit$/i }))
+
+      expect(screen.getByLabelText(/printer bridge port/i)).toHaveValue('8009')
+    })
+
+    it('automatically checks every saved printer\'s reachability without needing "Use" clicked first', async () => {
+      networkPrinter.checkNetworkBridge.mockResolvedValue(undefined)
+      usePrinterStore.setState({
+        printers: [{ id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' }],
+      })
+
+      render(<PrinterConfig />)
+
+      await waitFor(() => expect(networkPrinter.checkNetworkBridge).toHaveBeenCalledWith({ host: '192.168.1.30', port: '8008', secure: true }))
+      await waitFor(() => expect(screen.getByText(/● reachable/i)).toBeInTheDocument())
+    })
+
+    it('shows a saved printer as unreachable automatically, without duplicating the detailed error text shown elsewhere', async () => {
+      networkPrinter.checkNetworkBridge.mockRejectedValue(new Error('Could not reach the bridge.'))
+      usePrinterStore.setState({
+        printers: [{ id: 'p1', name: 'Kitchen 1', type: 'network', host: '192.168.1.30', port: '8008', secure: true, printer: '' }],
+      })
+
+      render(<PrinterConfig />)
+
+      await waitFor(() => expect(screen.getByText(/● unreachable/i)).toBeInTheDocument())
+      expect(screen.queryByText(/could not reach the bridge/i)).not.toBeInTheDocument()
+
+      const callsBefore = networkPrinter.checkNetworkBridge.mock.calls.length
+      const user = userEvent.setup()
+      await user.click(screen.getByRole('button', { name: /^recheck$/i }))
+      await waitFor(() => expect(networkPrinter.checkNetworkBridge.mock.calls.length).toBeGreaterThan(callsBefore))
+    })
+
     it('fetches printer names from a multi-printer bridge and offers them as suggestions', async () => {
       networkPrinter.listBridgePrinters.mockResolvedValue(['kitchen1', 'kitchen2'])
       const user = userEvent.setup()

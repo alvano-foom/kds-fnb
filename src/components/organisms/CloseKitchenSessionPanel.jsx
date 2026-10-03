@@ -59,7 +59,7 @@ export function CloseKitchenSessionPanel({ onCancel, onClosed }) {
       {pending.length > 0 && (
         <div className="space-y-2 rounded-lg bg-amber-50 p-3">
           <p className="text-sm text-amber-800">
-            {pending.length} manufacturing order{pending.length > 1 ? 's are' : ' is'} still not done or cancelled (
+            {pending.length} manufacturing order{pending.length > 1 ? 's' : ''} / prep meal{pending.length > 1 ? 's are' : ' is'} still not done or cancelled (
             {pending.map((p) => p.name).join(', ')}). Resolve them above with Retry/Cancel, or:
           </p>
           <label className="flex items-center gap-2 text-sm text-amber-800">
@@ -84,10 +84,10 @@ export function CloseKitchenSessionPanel({ onCancel, onClosed }) {
       )}
 
       {doneWithoutScrap.length === 0 ? (
-        <p className="text-sm text-gray-600">Every manufacturing order already has scrap recorded.</p>
+        <p className="text-sm text-gray-600">Every manufacturing order / prep meal already has scrap recorded.</p>
       ) : (
         <div className="space-y-2">
-          <p className="text-sm text-gray-600">Enter scrap for each manufacturing order before closing:</p>
+          <p className="text-sm text-gray-600">Enter scrap for each manufacturing order / prep meal before closing:</p>
           <ul className="space-y-2">
             {doneWithoutScrap.map((mo) => (
               <li key={mo.id} className="rounded-lg border border-gray-200 p-2.5">

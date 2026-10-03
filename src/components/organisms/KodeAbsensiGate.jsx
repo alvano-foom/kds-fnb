@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useWhoami, useOpenKitchenSession } from '../../hooks/useKitchenSession'
+import { useWhoami, useOpenKitchenSession, useShifts } from '../../hooks/useKitchenSession'
+import { findCurrentShift, formatShiftWindow } from '../../lib/shifts'
 import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
 import { useTenantStore } from '../../store/tenantStore'
+import { ShiftTaskList } from '../molecules/ShiftTaskList'
 import { FormField } from '../molecules/FormField'
 import { Input } from '../atoms/Input'
 import { Button } from '../atoms/Button'
@@ -22,11 +24,22 @@ export function KodeAbsensiGate() {
   const setSession = useKitchenSessionStore((s) => s.setSession)
 
   const [code, setCode] = useState('')
-  const [shift, setShift] = useState('')
+  const [shift, setShift] = useState('') // free text — only used when there are no shifts from Odoo
+  const [shiftId, setShiftId] = useState(null) // null = not touched yet → follow the current-time default
   const [checked, setChecked] = useState(null) // whoami result once confirmed
 
   const whoami = useWhoami()
   const openSession = useOpenKitchenSession()
+
+  // Shifts come from Odoo's foom.attendance.shift. If the endpoint isn't
+  // there yet (or the company has none), the list is empty and we fall
+  // back to the old free-text field — opening the kitchen is never blocked.
+  const shiftsQuery = useShifts()
+  const shifts = useMemo(() => shiftsQuery.data ?? [], [shiftsQuery.data])
+  const hasShifts = shifts.length > 0
+  const defaultShift = useMemo(() => findCurrentShift(shifts), [shifts])
+  const selectedShiftId = shiftId ?? defaultShift?.id ?? ''
+  const pickedShift = hasShifts ? shifts.find((s) => s.id === selectedShiftId) : null
 
   function handleCheck(e) {
     e.preventDefault()
@@ -44,8 +57,11 @@ export function KodeAbsensiGate() {
   }
 
   function handleOpen() {
+    const picked = pickedShift
     openSession.mutate(
-      { employeeCode: code.trim(), shift: shift.trim() || undefined },
+      hasShifts
+        ? { employeeCode: code.trim(), shiftId: picked?.id, shift: picked?.name }
+        : { employeeCode: code.trim(), shift: shift.trim() || undefined },
       {
         onSuccess: (session) => {
           setSession({ session, employee: { ...checked.employee, code: code.trim() }, companyId })
@@ -80,14 +96,40 @@ export function KodeAbsensiGate() {
           </div>
         ) : (
           <div className="space-y-3">
-            <FormField label="Shift (optional)" htmlFor="shift">
-              <Input
-                id="shift"
-                value={shift}
-                onChange={(e) => setShift(e.target.value)}
-                placeholder="e.g. Shift 1"
-              />
-            </FormField>
+            {hasShifts ? (
+              <FormField label="Shift" htmlFor="shift">
+                <select
+                  id="shift"
+                  value={selectedShiftId}
+                  onChange={(e) => setShiftId(e.target.value)}
+                  className="w-full rounded-lg border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-gray-900 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/20"
+                >
+                  <option value="">No shift</option>
+                  {shifts.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} · {formatShiftWindow(s)}
+                    </option>
+                  ))}
+                </select>
+              </FormField>
+            ) : (
+              <FormField label="Shift (optional)" htmlFor="shift">
+                <Input
+                  id="shift"
+                  value={shift}
+                  onChange={(e) => setShift(e.target.value)}
+                  placeholder="e.g. Shift 1"
+                />
+              </FormField>
+            )}
+            {hasShifts && pickedShift?.tasks?.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
+                  Your tasks this shift ({pickedShift.name})
+                </p>
+                <ShiftTaskList tasks={pickedShift.tasks} />
+              </div>
+            )}
             {openSession.isError && (
               <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
                 {openSession.error?.message || 'Could not open the kitchen.'}

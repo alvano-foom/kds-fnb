@@ -3,6 +3,7 @@ import { LoginPage } from '../pages/LoginPage'
 import { ConfigPage } from '../pages/ConfigPage'
 import { KitchenSessionPage } from '../pages/KitchenSessionPage'
 import { ProductionPage } from '../pages/ProductionPage'
+import { ShiftChecklistPage } from '../pages/ShiftChecklistPage'
 import { BoardPage } from '../pages/BoardPage'
 import { ErrorLogPage } from '../pages/ErrorLogPage'
 import { useIsAuthenticated } from '../hooks/useAuth'
@@ -67,6 +68,18 @@ export function AppRouter() {
               <RequireConfig>
                 <RequireKitchenSession>
                   <ProductionPage />
+                </RequireKitchenSession>
+              </RequireConfig>
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/shift-checklist"
+          element={
+            <RequireAuth>
+              <RequireConfig>
+                <RequireKitchenSession>
+                  <ShiftChecklistPage />
                 </RequireKitchenSession>
               </RequireConfig>
             </RequireAuth>

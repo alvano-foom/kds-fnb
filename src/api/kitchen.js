@@ -16,11 +16,45 @@ export function whoami({ companyId, employeeCode }) {
   })
 }
 
-export function openKitchenSession({ companyId, employeeCode, shift }) {
+/**
+ * `shiftId` (foom.attendance.shift id, from listShifts below) is the
+ * preferred way to say which shift this is; `shift` (free text) stays
+ * accepted so a backend without the shift endpoint yet — or a company
+ * with no shifts configured — still works exactly as before.
+ */
+export function openKitchenSession({ companyId, employeeCode, shift, shiftId }) {
   return apiFetch('/kitchen/sessions', {
     method: 'POST',
-    body: JSON.stringify({ company_id: companyId, employee_code: employeeCode, shift }),
+    body: JSON.stringify({ company_id: companyId, employee_code: employeeCode, shift, shift_id: shiftId }),
   })
+}
+
+/**
+ * Shift master data from Odoo's foom.attendance.shift (Attendances →
+ * Configuration → Shift). NOT in the foom_fnb_api docs yet — this is the
+ * proposed contract, see docs/kitchen-shift-bom-api-contract.md.
+ * @returns {Promise<{company_id: string, shifts: {id: string, name: string, code?: string, start_time: string, end_time: string, crosses_midnight: boolean, duration_hours?: number}[]}>}
+ */
+export function listShifts({ companyId } = {}) {
+  const params = new URLSearchParams()
+  if (companyId) params.set('company_id', companyId)
+  return apiFetch(`/kitchen/shifts?${params.toString()}`)
+}
+
+/**
+ * BOM preview for the pre-create checklist: the finished product's
+ * default BoM and its components, quantities expressed per `output_qty`
+ * of finished product (the caller scales them by the qty being made — see
+ * src/lib/bom.js). NOT in the foom_fnb_api docs yet — proposed contract,
+ * see docs/kitchen-shift-bom-api-contract.md. 409 `no_bom` when the
+ * product has no Bill of Materials.
+ * @returns {Promise<import('../lib/bom').BomPreview>}
+ */
+export function getBomPreview({ companyId, productId }) {
+  const params = new URLSearchParams()
+  if (companyId) params.set('company_id', companyId)
+  params.set('product_id', productId)
+  return apiFetch(`/kitchen/boms?${params.toString()}`)
 }
 
 /** Full detail incl. productions[], scraps[], logs[] — the source of truth for the Production page's list. */

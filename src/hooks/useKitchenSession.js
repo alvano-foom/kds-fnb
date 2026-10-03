@@ -7,6 +7,8 @@ import {
   createProduction,
   setProductionState,
   closeKitchenSession,
+  listShifts,
+  getBomPreview,
 } from '../api/kitchen'
 import { useKitchenSessionStore } from '../store/kitchenSessionStore'
 import { useTenantStore } from '../store/tenantStore'
@@ -31,7 +33,38 @@ export function useWhoami() {
 export function useOpenKitchenSession() {
   const companyId = useTenantStore((s) => s.companyId)
   return useMutation({
-    mutationFn: ({ employeeCode, shift }) => openKitchenSession({ companyId, employeeCode, shift }),
+    mutationFn: ({ employeeCode, shift, shiftId }) => openKitchenSession({ companyId, employeeCode, shift, shiftId }),
+  })
+}
+
+/**
+ * Shift master data (Odoo foom.attendance.shift) for the Open Kitchen
+ * form's picker. Deliberately never throws into the UI: until the backend
+ * ships /kitchen/shifts (or for a company with no shifts configured) the
+ * query just errors/returns [], and the form falls back to its old free-text
+ * Shift field instead of blocking anyone from opening the kitchen.
+ */
+export function useShifts() {
+  const companyId = useTenantStore((s) => s.companyId)
+  return useQuery({
+    queryKey: ['kitchen-shifts', companyId],
+    queryFn: () => listShifts({ companyId }),
+    enabled: Boolean(companyId),
+    select: (data) => data?.shifts ?? [],
+    staleTime: 5 * 60_000, // shifts are master data — they change on the order of weeks
+    retry: false,
+  })
+}
+
+/** Default BoM + components for the chosen product — drives the pre-create checklist. Off until a product is picked. */
+export function useBomPreview(productId) {
+  const companyId = useTenantStore((s) => s.companyId)
+  return useQuery({
+    queryKey: ['kitchen-bom', companyId, productId],
+    queryFn: () => getBomPreview({ companyId, productId }),
+    enabled: Boolean(companyId && productId),
+    staleTime: 60_000,
+    retry: false, // a 409 no_bom is a real answer, not a blip worth retrying
   })
 }
 
@@ -78,8 +111,8 @@ export function useCreateProduction() {
   const companyId = useTenantStore((s) => s.companyId)
   const session = useKitchenSessionStore((s) => s.session)
   return useMutation({
-    mutationFn: ({ employeeCode, productId, qty }) =>
-      createProduction({ companyId, employeeCode, productId, qty }),
+    mutationFn: ({ employeeCode, productId, qty, bomId }) =>
+      createProduction({ companyId, employeeCode, productId, qty, bomId }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionDetailQueryKey(session?.id) }),
   })
 }

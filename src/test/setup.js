@@ -9,6 +9,7 @@ import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
 import { usePrinterStore } from '../store/printerStore'
 import { useErrorLogStore } from '../store/errorLogStore'
 import { useKitchenSessionStore } from '../store/kitchenSessionStore'
+import { useShiftChecklistStore } from '../store/shiftChecklistStore'
 import { resetKitchenMockData } from '../api/mocks/fixtures'
 
 // jsdom has no SpeechSynthesis implementation. A passive stub keeps the
@@ -37,6 +38,7 @@ afterEach(() => {
   server.resetHandlers()
   cleanup()
   localStorage.clear()
+  useShiftChecklistStore.setState({ sessionId: null, done: [] })
   useAuthStore.setState({ accessToken: null, refreshToken: null, user: null })
   useTenantStore.setState({ companyId: null, companyName: null })
   useThemeStore.setState(DEFAULT_THEME)

@@ -33,18 +33,91 @@ describe('kitchen production — create (auto-done) and shortage recovery', () =
     })
   })
 
-  it('creates a manufacturing order and marks it done automatically', async () => {
+  async function pickProduct(user, search, label, qty) {
+    await user.type(screen.getByLabelText(/product to manufacture/i), search)
+    await user.click(await screen.findByText(label))
+    await user.type(screen.getByLabelText(/quantity to manufacture/i), qty)
+    await user.click(screen.getByRole('button', { name: /process manufacture order/i }))
+  }
+
+  async function tickAll(user) {
+    for (const box of await screen.findAllByRole('checkbox')) await user.click(box)
+  }
+
+  const createButton = () => screen.getByRole('button', { name: /create manufacturing order \/ prep meal/i })
+
+  it('creates a manufacturing order / prep meal and marks it done automatically', async () => {
     const user = userEvent.setup()
     renderProduction()
 
-    await user.type(screen.getByLabelText(/product to manufacture/i), 'nasi')
-    await user.click(await screen.findByText('Nasi Goreng Spesial'))
-    await user.type(screen.getByLabelText(/quantity to manufacture/i), '10')
-    await user.click(screen.getByRole('button', { name: /create manufacturing order/i }))
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+    await tickAll(user)
+    await user.click(createButton())
 
     expect(await screen.findByText(/WH\/MO\/00001/)).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText(/^done$/i)).toBeInTheDocument())
     expect(screen.getByText(/scrap needed before closing/i)).toBeInTheDocument()
+  })
+
+  it('previews the BoM with consumed qty scaled to the requested qty', async () => {
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+
+    // Nasi Putih: 200 g per 1 → 2000 g for 10; Telur: 1 pcs per 1 → 10 pcs
+    expect(await screen.findByLabelText(/nasi putih — consumed 2000 g/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/telur ayam — consumed 10 pcs/i)).toBeInTheDocument()
+  })
+
+  it('keeps Create disabled until every ingredient is ticked, and un-ticking disables it again', async () => {
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+    const boxes = await screen.findAllByRole('checkbox')
+    expect(createButton()).toBeDisabled()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')
+
+    for (const box of boxes.slice(0, -1)) await user.click(box)
+    expect(createButton()).toBeDisabled()
+
+    await user.click(boxes[boxes.length - 1])
+    expect(createButton()).toBeEnabled()
+    expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '100')
+
+    await user.click(boxes[0])
+    expect(createButton()).toBeDisabled()
+  })
+
+  it('does not create anything just by processing — nothing hits Odoo until Create', async () => {
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+    await screen.findAllByRole('checkbox')
+    expect(screen.getByText(/no manufacturing orders \/ prep meals created yet/i)).toBeInTheDocument()
+  })
+
+  it('"Edit" goes back to step 1 and a new run starts with a fresh, unticked checklist', async () => {
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+    await user.click((await screen.findAllByRole('checkbox'))[0])
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
+
+    await user.click(screen.getByRole('button', { name: /process manufacture order/i }))
+    for (const box of await screen.findAllByRole('checkbox')) expect(box).not.toBeChecked()
+  })
+
+  it('explains when the product has no Bill of Materials', async () => {
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'es teh', 'Es Teh Manis', '5')
+    expect(await screen.findByText(/bill of materials/i)).toBeInTheDocument()
+    expect(createButton()).toBeDisabled()
   })
 
   it('flags a shortage instead of silently failing, and Retry/Cancel resolve it', async () => {
@@ -52,10 +125,10 @@ describe('kitchen production — create (auto-done) and shortage recovery', () =
     renderProduction()
 
     // "Sate Matang" is seeded with only 3 available — asking for 9 exercises the real 409 done_failed path.
-    await user.type(screen.getByLabelText(/product to manufacture/i), 'sate matang')
-    await user.click(await screen.findByText('Sate Matang'))
-    await user.type(screen.getByLabelText(/quantity to manufacture/i), '9')
-    await user.click(screen.getByRole('button', { name: /create manufacturing order/i }))
+    await pickProduct(user, 'sate matang', 'Sate Matang', '9')
+    expect(await screen.findByText(/short — only/i)).toBeInTheDocument()
+    await tickAll(user)
+    await user.click(createButton())
 
     expect(await screen.findByText(/couldn't be finished automatically/i)).toBeInTheDocument()
     expect(await screen.findByText(/confirmed/i)).toBeInTheDocument()

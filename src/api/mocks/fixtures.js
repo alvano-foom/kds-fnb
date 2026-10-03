@@ -208,3 +208,67 @@ export function nextProductionName() {
 export function summarizeKitchenSession(session) {
   return session
 }
+
+// ---------------------------------------------------------------------------
+// Shift master data + BoM preview (proposed contract — see
+// docs/kitchen-shift-bom-api-contract.md; not in foom_fnb_api yet)
+// ---------------------------------------------------------------------------
+
+/**
+ * Stand-in for foom.attendance.shift (Attendances → Configuration → Shift).
+ * "Pagi 08:00–17:00" mirrors the real record; the other two exist so the
+ * overnight (Lintas Hari) rule and "pick the shift matching right now" are
+ * exercised with more than one candidate.
+ */
+export const mockShifts = [
+  { id: 's1', name: 'Pagi', code: 'PAGI', start_time: '08:00', end_time: '17:00', crosses_midnight: false, duration_hours: 9, tasks: [{ id: 's1t1', name: 'Check fridge & freezer temperature, log it', sequence: 1, description: 'Chiller 0–4 °C, freezer ≤ −18 °C' }, { id: 's1t2', name: 'Prep base sauces and marinades', sequence: 2 }, { id: 's1t3', name: 'Cook a batch of rice for lunch service', sequence: 3 }, { id: 's1t4', name: 'Label and date every prep container', sequence: 4 }, { id: 's1t5', name: 'Handover note for the Siang shift', sequence: 5 }], company_id: 'c1' },
+  { id: 's2', name: 'Siang', code: 'SIANG', start_time: '14:00', end_time: '22:00', crosses_midnight: false, duration_hours: 8, tasks: [{ id: 's2t1', name: 'Restock mise en place for dinner rush', sequence: 1 }, { id: 's2t2', name: 'Check stock of fast-moving items (eggs, chicken, rice)', sequence: 2 }, { id: 's2t3', name: 'Clean the grill and fryer between services', sequence: 3 }], company_id: 'c1' },
+  { id: 's3', name: 'Malam', code: 'MALAM', start_time: '22:00', end_time: '06:00', crosses_midnight: true, duration_hours: 8, tasks: [{ id: 's3t1', name: 'Deep-clean stations and equipment', sequence: 1 }, { id: 's3t2', name: 'Count remaining stock and record scrap', sequence: 2 }, { id: 's3t3', name: 'Turn off gas and equipment, lock the storage', sequence: 3 }], company_id: 'c1' },
+  { id: 's4', name: 'Pagi', code: 'PAGI', start_time: '07:00', end_time: '15:00', crosses_midnight: false, duration_hours: 8, tasks: [{ id: 's4t1', name: 'Check fridge temperature, log it', sequence: 1 }, { id: 's4t2', name: 'Prep the morning mise en place', sequence: 2 }], company_id: 'c2' },
+]
+
+/**
+ * Stand-in for the default mrp.bom per finished product. `qty` is per
+ * `output_qty` of finished product, exactly like Odoo's mrp.bom.line —
+ * Es Teh Manis (a plain stock item, kind 'stock') and Rendang Daging
+ * deliberately have no BoM, to exercise the 409 no_bom path.
+ */
+export const mockBoms = {
+  p1: {
+    bom_id: 'b1',
+    bom_code: 'BOM-NGS',
+    product_id: 'p1',
+    product_name: 'Nasi Goreng Spesial',
+    uom: 'Portion',
+    output_qty: 1,
+    components: [
+      { product_id: 'c1', name: 'Nasi Putih', uom: 'g', qty: 200, available_qty: 12000 },
+      { product_id: 'c2', name: 'Telur Ayam', uom: 'pcs', qty: 1, available_qty: 90 },
+      { product_id: 'c3', name: 'Bumbu Nasi Goreng', uom: 'g', qty: 15, available_qty: 2000 },
+    ],
+  },
+  p2: {
+    bom_id: 'b2',
+    bom_code: 'BOM-AB',
+    product_id: 'p2',
+    product_name: 'Ayam Bakar',
+    uom: 'Portion',
+    output_qty: 2,
+    components: [
+      { product_id: 'c4', name: 'Ayam Potong', uom: 'g', qty: 600, available_qty: 8000 },
+      { product_id: 'c5', name: 'Bumbu Bakar', uom: 'g', qty: 50, available_qty: 1500 },
+    ],
+  },
+  p3: {
+    bom_id: 'b3',
+    bom_code: 'BOM-SM',
+    product_id: 'p3',
+    product_name: 'Sate Matang',
+    uom: 'Portion',
+    output_qty: 1,
+    components: [
+      { product_id: 'c6', name: 'Daging Sate', uom: 'g', qty: 150, available_qty: 450 },
+      { product_id: 'c7', name: 'Tusuk Sate', uom: 'pcs', qty: 5, available_qty: 400 },
+    ],
+  },
+}

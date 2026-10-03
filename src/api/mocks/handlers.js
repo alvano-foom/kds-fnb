@@ -7,6 +7,8 @@ import {
   toOrderLineCard,
   findLine,
   mockKitchenProducts,
+  mockShifts,
+  mockBoms,
   kitchenSessions,
   openSessionByCompany,
   productionIndex,
@@ -142,9 +144,11 @@ export const handlers = [
   http.post('/api/kitchen/sessions', async ({ request }) => {
     const userId = requireAuth(request)
     if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
-    const { company_id, employee_code, shift } = await request.json()
+    const { company_id, employee_code, shift, shift_id } = await request.json()
     const employee = findEmployeeByCode(employee_code)
     if (!employee) return errorResponse(401, 'invalid_employee_code', 'Kode absensi tidak dikenal.')
+    const shiftRecord = shift_id ? mockShifts.find((x) => x.id === shift_id && x.company_id === company_id) : null
+    if (shift_id && !shiftRecord) return errorResponse(400, 'bad_request', `Unknown shift_id "${shift_id}" for this company.`)
 
     const existingId = openSessionByCompany.get(company_id)
     if (existingId) {
@@ -158,7 +162,9 @@ export const handlers = [
       id,
       name: nextKitchenSessionName(),
       state: 'open',
-      shift: shift || '',
+      // `shift` stays the display name (string) whichever way it was chosen; shift_id is the structured link.
+      shift: shiftRecord ? shiftRecord.name : shift || '',
+      shift_id: shiftRecord ? shiftRecord.id : null,
       warehouse_id: 'w1',
       company_id,
       opened_by: { id: employee.id, name: employee.name },
@@ -302,6 +308,26 @@ export const handlers = [
     session.logs.push({ action: 'close', employee: employee.name, at: session.closed_at })
     openSessionByCompany.delete(session.company_id)
     return HttpResponse.json(session)
+  }),
+
+  http.get('/api/kitchen/shifts', ({ request }) => {
+    const userId = requireAuth(request)
+    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
+    const companyId = new URL(request.url).searchParams.get('company_id')
+    if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
+    const shifts = mockShifts.filter((s) => s.company_id === companyId).map(({ company_id: _omit, ...rest }) => rest)
+    return HttpResponse.json({ company_id: companyId, shifts })
+  }),
+
+  http.get('/api/kitchen/boms', ({ request }) => {
+    const userId = requireAuth(request)
+    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
+    const url = new URL(request.url)
+    const productId = url.searchParams.get('product_id')
+    if (!productId) return errorResponse(400, 'bad_request', 'product_id is required.')
+    const bom = mockBoms[productId]
+    if (!bom) return errorResponse(409, 'no_bom', 'Produk tidak punya Bill of Materials.')
+    return HttpResponse.json(bom)
   }),
 
   http.get('/api/stock', ({ request }) => {

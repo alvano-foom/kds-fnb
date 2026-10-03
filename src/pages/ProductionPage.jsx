@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/templates/AppShell'
 import { KitchenSessionBadge } from '../components/molecules/KitchenSessionBadge'
+import { ShiftChecklistLink } from '../components/molecules/ShiftChecklistLink'
 import { ProductionForm } from '../components/organisms/ProductionForm'
 import { ProductionList } from '../components/organisms/ProductionList'
 import { CloseKitchenSessionPanel } from '../components/organisms/CloseKitchenSessionPanel'
@@ -25,6 +26,7 @@ export function ProductionPage() {
           <Button variant="ghost" onClick={() => navigate('/board')}>
             Order Board
           </Button>
+          <ShiftChecklistLink />
           {!closing && (
             <Button variant="ghost" onClick={() => setClosing(true)}>
               Close Kitchen
@@ -50,7 +52,7 @@ export function ProductionPage() {
             <ProductionForm />
             <div className="rounded-2xl bg-white p-4 shadow-sm">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">
-                This Session's Manufacturing Orders
+                This Session's Manufacturing Orders / Prep Meals
               </p>
               <ProductionList />
             </div>

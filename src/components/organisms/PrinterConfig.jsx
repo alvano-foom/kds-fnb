@@ -88,6 +88,24 @@ export function PrinterConfig() {
   const [bridgePrinterOptions, setBridgePrinterOptions] = useState([])
   const [fetchingBridgeList, setFetchingBridgeList] = useState(false)
 
+  // Port + HTTPS are collapsed behind "Advanced" by default: every bridge
+  // (bridge.js and the Node-RED flow alike) listens on 8008 unless told
+  // otherwise, so the common case really is just "type the bridge's IP".
+  // Still fully configurable for Option B setups — several bridge
+  // processes on different ports on the same computer — someone just has
+  // to open Advanced to change it. Editing a printer that's already on a
+  // non-default port/scheme opens it automatically so nothing is hidden.
+  const [advancedOpen, setAdvancedOpen] = useState(false)
+
+  // Automatic reachability for every SAVED printer, not just the one
+  // being typed into the form (see the auto-check effect below that one)
+  // — so opening Settings shows at a glance which bridges answer right
+  // now, without anyone having to click "Use" first just to find out.
+  // Keyed by printer id; kept deliberately generic (no raw error text)
+  // so it never duplicates whatever detailed message the "Use" button's
+  // own real check (or Add's own validation) already shows elsewhere.
+  const [liveStatus, setLiveStatus] = useState({})
+
   // Automatic reachability check: pings the bridge's /status as soon as a
   // plausible host + port have been typed, so someone filling in the form
   // finds out right away whether the bridge answers — instead of only
@@ -124,6 +142,46 @@ export function PrinterConfig() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- deliberately re-runs on every keystroke in these three fields, debounced above
   }, [formOpen, formHost, formPort, formSecure])
 
+  const printersSignature = networkPrinters.map((p) => `${p.id}:${p.host}:${p.port}:${p.secure}`).join('|')
+
+  useEffect(() => {
+    if (networkPrinters.length === 0) return
+    let cancelled = false
+    setLiveStatus((prev) => {
+      const next = { ...prev }
+      networkPrinters.forEach((p) => {
+        next[p.id] = { state: 'checking' }
+      })
+      return next
+    })
+    networkPrinters.forEach((p) => {
+      // Wrapped in Promise.resolve() so this never throws even if something
+      // (e.g. a test double) returns a plain value instead of a promise.
+      Promise.resolve()
+        .then(() => checkNetworkBridge({ host: p.host, port: p.port, secure: p.secure }))
+        .then(() => {
+          if (!cancelled) setLiveStatus((prev) => ({ ...prev, [p.id]: { state: 'ok' } }))
+        })
+        .catch(() => {
+          if (!cancelled) setLiveStatus((prev) => ({ ...prev, [p.id]: { state: 'error' } }))
+        })
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-runs whenever any saved printer is added/edited/removed, keyed by the signature below rather than the (re-created-on-every-render) filtered array itself
+  }, [printersSignature])
+
+  async function recheckPrinter(p) {
+    setLiveStatus((prev) => ({ ...prev, [p.id]: { state: 'checking' } }))
+    try {
+      await checkNetworkBridge({ host: p.host, port: p.port, secure: p.secure })
+      setLiveStatus((prev) => ({ ...prev, [p.id]: { state: 'ok' } }))
+    } catch {
+      setLiveStatus((prev) => ({ ...prev, [p.id]: { state: 'error' } }))
+    }
+  }
+
   async function handlePair() {
     setConnecting()
     try {
@@ -154,6 +212,7 @@ export function PrinterConfig() {
     setFormError(null)
     setBridgePrinterOptions([])
     setAutoCheck({ status: 'idle', message: '' })
+    setAdvancedOpen(false)
   }
 
   function openAddForm() {
@@ -172,6 +231,10 @@ export function PrinterConfig() {
     setFormError(null)
     setBridgePrinterOptions([])
     setAutoCheck({ status: 'idle', message: '' })
+    // Don't hide a non-default port/scheme behind a collapsed toggle when
+    // editing — only start collapsed for a printer that's on the plain
+    // defaults already.
+    setAdvancedOpen((profile.port || DEFAULT_BRIDGE_PORT) !== DEFAULT_BRIDGE_PORT || profile.secure === false)
     setFormOpen(true)
   }
 
@@ -352,6 +415,30 @@ export function PrinterConfig() {
                         {p.printer ? ` → ${p.printer}` : ''}
                         {p.secure ? ' · https' : ' · http'}
                       </p>
+                      <p
+                        className={
+                          'mt-0.5 text-[11px] ' +
+                          (liveStatus[p.id]?.state === 'ok'
+                            ? 'text-emerald-600'
+                            : liveStatus[p.id]?.state === 'error'
+                              ? 'text-amber-700'
+                              : 'text-gray-400')
+                        }
+                      >
+                        {liveStatus[p.id]?.state === 'checking' && 'Checking…'}
+                        {liveStatus[p.id]?.state === 'ok' && '● Reachable'}
+                        {liveStatus[p.id]?.state === 'error' && '● Unreachable'}
+                        {!liveStatus[p.id] && 'Not checked yet'}
+                        {liveStatus[p.id]?.state && liveStatus[p.id].state !== 'checking' && (
+                          <button
+                            type="button"
+                            onClick={() => recheckPrinter(p)}
+                            className="ml-1.5 font-medium underline"
+                          >
+                            Recheck
+                          </button>
+                        )}
+                      </p>
                     </div>
                     <div className="flex items-center gap-1.5">
                       <Button
@@ -402,24 +489,43 @@ export function PrinterConfig() {
                     aria-label="Printer bridge IP address or hostname"
                     className="w-64 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
                   />
-                  <input
-                    type="text"
-                    value={formPort}
-                    onChange={(e) => setFormPort(e.target.value)}
-                    placeholder="Port"
-                    aria-label="Printer bridge port"
-                    className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
-                  />
-                  <label className="flex items-center gap-1.5 text-xs text-gray-500">
-                    <input
-                      type="checkbox"
-                      checked={formSecure}
-                      onChange={(e) => setFormSecure(e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-gray-300"
-                    />
-                    Bridge uses HTTPS
-                  </label>
                 </div>
+                {advancedOpen ? (
+                  <div className="flex flex-wrap items-center gap-2">
+                    <input
+                      type="text"
+                      value={formPort}
+                      onChange={(e) => setFormPort(e.target.value)}
+                      placeholder="Port"
+                      aria-label="Printer bridge port"
+                      className="w-20 rounded-md border border-gray-300 px-2 py-1.5 text-sm"
+                    />
+                    <label className="flex items-center gap-1.5 text-xs text-gray-500">
+                      <input
+                        type="checkbox"
+                        checked={formSecure}
+                        onChange={(e) => setFormSecure(e.target.checked)}
+                        className="h-3.5 w-3.5 rounded border-gray-300"
+                      />
+                      Bridge uses HTTPS
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setAdvancedOpen(false)}
+                      className="text-xs font-medium text-gray-400 underline"
+                    >
+                      Hide advanced
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setAdvancedOpen(true)}
+                    className="text-xs font-medium text-brand underline"
+                  >
+                    Advanced (port {formPort || DEFAULT_BRIDGE_PORT}, {formSecure ? 'https' : 'http'})
+                  </button>
+                )}
                 {autoCheck.status !== 'idle' && (
                   <p
                     className={

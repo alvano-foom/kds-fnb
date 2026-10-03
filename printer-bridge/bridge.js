@@ -56,6 +56,29 @@ const http = require('http')
 const https = require('https')
 const net = require('net')
 const fs = require('fs')
+const os = require('os')
+
+// `server.listen()` logs "0.0.0.0:PORT" below — accurate, but not
+// something anyone can actually type into a browser or the KDS app. This
+// finds the computer's real LAN IPv4 address(es) so the startup log can
+// just say it outright, instead of making whoever's setting this up go
+// run `ip addr`/`ipconfig` themselves to find out (a confusion that's
+// come up enough in practice — see README.md's "Which IP do I actually
+// visit for /status?" — to be worth fixing here instead of only in docs).
+// Skips internal (127.0.0.1) and non-IPv4 addresses; a machine with
+// several real network adapters (e.g. Wi-Fi + Ethernet both up) will
+// show more than one line, which is correct — any of them may work,
+// depending on which network the tablets are actually on.
+function getLanAddresses() {
+  const addresses = []
+  const interfaces = os.networkInterfaces()
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) addresses.push(iface.address)
+    }
+  }
+  return addresses
+}
 
 // Repeated flags (e.g. multiple `--printer name=host:port`) collect into
 // an array instead of the later one silently overwriting the earlier one.
@@ -299,6 +322,20 @@ function stopMdns(callback) {
 server.listen(LISTEN_PORT, () => {
   const scheme = CERT_PATH ? 'https' : 'http'
   console.log(`Print bridge listening on ${scheme}://0.0.0.0:${LISTEN_PORT}`)
+  const lanAddresses = getLanAddresses()
+  if (lanAddresses.length > 0) {
+    console.log(
+      `This is what to actually visit/enter — ${lanAddresses.length > 1 ? 'this computer has more than one network address, try the first one first' : "this computer's address"}:`,
+    )
+    for (const address of lanAddresses) {
+      console.log(`  ${scheme}://${address}:${LISTEN_PORT}/status  (use ${address} in the KDS app's "Bridge IP" field)`)
+    }
+  } else {
+    console.log(
+      "Could not detect a LAN IP address automatically — find this computer's own IP with `ip addr` " +
+        '(Linux), `ipconfig` (Windows), or `ifconfig`/Network settings (macOS), then use that.',
+    )
+  }
   const list = [...PRINTERS.entries()].map(([name, t]) => `${name} -> ${t.host}:${t.port}`).join(', ')
   console.log(PRINTERS.size > 1 ? `Printers configured: ${list}` : `Relaying to printer: ${list}`)
   if (!CERT_PATH) {

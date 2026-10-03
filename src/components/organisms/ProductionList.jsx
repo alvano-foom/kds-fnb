@@ -26,7 +26,7 @@ export function ProductionList() {
     )
   }
   if (!session || session.productions.length === 0) {
-    return <p className="text-sm text-gray-400">No manufacturing orders created yet this session.</p>
+    return <p className="text-sm text-gray-400">No manufacturing orders / prep meals created yet this session.</p>
   }
 
   return (

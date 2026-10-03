@@ -3,6 +3,7 @@ import { AppShell } from '../components/templates/AppShell'
 import { KanbanBoard } from '../components/organisms/KanbanBoard'
 import { PendingOrderAlerts } from '../components/organisms/PendingOrderAlerts'
 import { ConnectionStatus } from '../components/molecules/ConnectionStatus'
+import { ShiftChecklistLink } from '../components/molecules/ShiftChecklistLink'
 import { KitchenSessionBadge } from '../components/molecules/KitchenSessionBadge'
 import { Button } from '../components/atoms/Button'
 import { Spinner } from '../components/atoms/Spinner'
@@ -35,6 +36,7 @@ export function BoardPage() {
       rightSlot={
         <>
           <ConnectionStatus status={status} />
+          <ShiftChecklistLink />
           <Button variant="ghost" onClick={() => navigate('/production')}>
             Production
           </Button>
