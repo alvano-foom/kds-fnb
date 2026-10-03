@@ -7,11 +7,40 @@
  * @property {string} end_time          "HH:MM" 24h, Odoo's Jam Pulang
  * @property {boolean} crosses_midnight Odoo's Lintas Hari — end_time falls on the next day
  * @property {number} [duration_hours]
+ * @property {boolean} [is_default]
+ * @property {ShiftTask[]} tasks
+ *
+ * @typedef {Object} ShiftTask
+ * @property {string} id
+ * @property {number} sequence
+ * @property {string} name
+ * @property {string} [description]
  */
 
 function toMinutes(hhmm) {
   const [h, m] = String(hhmm).split(':').map(Number)
   return h * 60 + (m || 0)
+}
+
+/**
+ * Maps one shift from foom_attendance's POST /shifts (integer ids,
+ * time_from / time_to, is_overnight) to the app's internal shape. Tasks are
+ * sorted by `sequence` (the API already does, this just makes it a guarantee).
+ */
+export function normalizeAttendanceShift(raw) {
+  return {
+    id: String(raw.id),
+    name: raw.name,
+    code: raw.code || undefined,
+    start_time: raw.time_from,
+    end_time: raw.time_to,
+    crosses_midnight: Boolean(raw.is_overnight),
+    duration_hours: raw.duration_hours,
+    is_default: Boolean(raw.is_default),
+    tasks: (raw.tasks ?? [])
+      .map((t) => ({ id: String(t.id), sequence: t.sequence ?? 0, name: t.name, description: t.description || undefined }))
+      .sort((a, b) => a.sequence - b.sequence),
+  }
 }
 
 /** "08:00–17:00" label for dropdowns/badges, with a "+1" marker when the shift runs past midnight. */
@@ -39,4 +68,9 @@ export function findCurrentShift(shifts, now = new Date()) {
       return minutes >= start && minutes < end
     }) || null
   )
+}
+
+/** What to pre-select in the picker: the shift running right now, else the employee's default shift, else nothing. */
+export function pickInitialShift(shifts, now = new Date()) {
+  return findCurrentShift(shifts, now) || shifts.find((s) => s.is_default) || null
 }

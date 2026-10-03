@@ -210,65 +210,154 @@ export function summarizeKitchenSession(session) {
 }
 
 // ---------------------------------------------------------------------------
-// Shift master data + BoM preview (proposed contract — see
-// docs/kitchen-shift-bom-api-contract.md; not in foom_fnb_api yet)
+// Shift master data (foom_attendance's POST /foom/attendance/api/shifts) and
+// the kitchen BoM preview / MO components (foom_fnb_api, 2026-10-03/04).
 // ---------------------------------------------------------------------------
 
+/** Test PIN accepted by the mock attendance /login for every mock employee. */
+export const MOCK_ATTENDANCE_PIN = '482913'
+
 /**
- * Stand-in for foom.attendance.shift (Attendances → Configuration → Shift).
- * "Pagi 08:00–17:00" mirrors the real record; the other two exist so the
- * overnight (Lintas Hari) rule and "pick the shift matching right now" are
- * exercised with more than one candidate.
+ * Stand-in for foom.attendance.shift, in the real API's exact shape (integer
+ * ids, time_from/time_to, is_overnight, tasks[] ordered by sequence).
+ * `company_id` is mock-only bookkeeping — the real API scopes by the
+ * employee behind the token and never returns it. The overnight (Lintas
+ * Hari) shift and the second company exist so "pick the shift matching right
+ * now" and company scoping are exercised with more than one candidate.
  */
+function mockShift(id, name, code, from, to, overnight, hours, companyId, isDefault, tasks) {
+  return {
+    id,
+    name,
+    code,
+    time_from: from,
+    time_to: to,
+    time_from_float: Number(from.slice(0, 2)) + Number(from.slice(3)) / 60,
+    time_to_float: Number(to.slice(0, 2)) + Number(to.slice(3)) / 60,
+    is_overnight: overnight,
+    duration_hours: hours,
+    grace_in_minutes: 10,
+    grace_out_minutes: 0,
+    early_in_window_minutes: 60,
+    late_out_window_minutes: 240,
+    enforce_window: false,
+    is_default: isDefault,
+    locations: [{ id: 1, name: 'Kantor Pusat' }],
+    tasks: tasks.map(([tname, description], i) => ({
+      id: id * 10 + i + 1,
+      sequence: i + 1,
+      name: tname,
+      description: description ?? '',
+    })),
+    company_id: companyId,
+  }
+}
+
 export const mockShifts = [
-  { id: 's1', name: 'Pagi', code: 'PAGI', start_time: '08:00', end_time: '17:00', crosses_midnight: false, duration_hours: 9, tasks: [{ id: 's1t1', name: 'Check fridge & freezer temperature, log it', sequence: 1, description: 'Chiller 0–4 °C, freezer ≤ −18 °C' }, { id: 's1t2', name: 'Prep base sauces and marinades', sequence: 2 }, { id: 's1t3', name: 'Cook a batch of rice for lunch service', sequence: 3 }, { id: 's1t4', name: 'Label and date every prep container', sequence: 4 }, { id: 's1t5', name: 'Handover note for the Siang shift', sequence: 5 }], company_id: 'c1' },
-  { id: 's2', name: 'Siang', code: 'SIANG', start_time: '14:00', end_time: '22:00', crosses_midnight: false, duration_hours: 8, tasks: [{ id: 's2t1', name: 'Restock mise en place for dinner rush', sequence: 1 }, { id: 's2t2', name: 'Check stock of fast-moving items (eggs, chicken, rice)', sequence: 2 }, { id: 's2t3', name: 'Clean the grill and fryer between services', sequence: 3 }], company_id: 'c1' },
-  { id: 's3', name: 'Malam', code: 'MALAM', start_time: '22:00', end_time: '06:00', crosses_midnight: true, duration_hours: 8, tasks: [{ id: 's3t1', name: 'Deep-clean stations and equipment', sequence: 1 }, { id: 's3t2', name: 'Count remaining stock and record scrap', sequence: 2 }, { id: 's3t3', name: 'Turn off gas and equipment, lock the storage', sequence: 3 }], company_id: 'c1' },
-  { id: 's4', name: 'Pagi', code: 'PAGI', start_time: '07:00', end_time: '15:00', crosses_midnight: false, duration_hours: 8, tasks: [{ id: 's4t1', name: 'Check fridge temperature, log it', sequence: 1 }, { id: 's4t2', name: 'Prep the morning mise en place', sequence: 2 }], company_id: 'c2' },
+  mockShift(1, 'Pagi', 'P1', '08:00', '17:00', false, 9, 'c1', true, [
+    ['Check fridge & freezer temperature, log it', 'Chiller 0–4 °C, freezer ≤ −18 °C'],
+    ['Prep base sauces and marinades'],
+    ['Cook a batch of rice for lunch service'],
+    ['Label and date every prep container'],
+    ['Handover note for the Siang shift'],
+  ]),
+  mockShift(2, 'Siang', 'S1', '14:00', '22:00', false, 8, 'c1', false, [
+    ['Restock mise en place for dinner rush'],
+    ['Check stock of fast-moving items (eggs, chicken, rice)'],
+    ['Clean the grill and fryer between services'],
+  ]),
+  mockShift(3, 'Malam', 'M1', '22:00', '06:00', true, 8, 'c1', false, [
+    ['Deep-clean stations and equipment'],
+    ['Count remaining stock and record scrap'],
+    ['Turn off gas and equipment, lock the storage'],
+  ]),
+  mockShift(4, 'Pagi', 'P1', '07:00', '15:00', false, 8, 'c2', true, [
+    ['Check fridge temperature, log it'],
+    ['Prep the morning mise en place'],
+  ]),
 ]
 
 /**
- * Stand-in for the default mrp.bom per finished product. `qty` is per
- * `output_qty` of finished product, exactly like Odoo's mrp.bom.line —
- * Es Teh Manis (a plain stock item, kind 'stock') and Rendang Daging
- * deliberately have no BoM, to exercise the 409 no_bom path.
+ * Stand-in for the default mrp.bom per finished product, per the real
+ * /kitchen/boms contract: `qty_per_bom` is per `bom_qty` of finished product
+ * (Odoo's product_qty); the handler scales it to the requested qty to give
+ * `required_qty` / `shortage_qty` / `ok`. Es Teh Manis (kind 'stock') and
+ * Rendang Daging deliberately have no BoM, to exercise 409 no_bom.
  */
 export const mockBoms = {
   p1: {
-    bom_id: 'b1',
-    bom_code: 'BOM-NGS',
-    product_id: 'p1',
-    product_name: 'Nasi Goreng Spesial',
-    uom: 'Portion',
-    output_qty: 1,
+    bom_id: '1', bom_code: 'BOM-NGS', bom_type: 'normal', product_id: 'p1', barcode: 'NASGOR-01',
+    product_name: 'Nasi Goreng Spesial', bom_qty: 1, bom_uom: 'Portion',
     components: [
-      { product_id: 'c1', name: 'Nasi Putih', uom: 'g', qty: 200, available_qty: 12000 },
-      { product_id: 'c2', name: 'Telur Ayam', uom: 'pcs', qty: 1, available_qty: 90 },
-      { product_id: 'c3', name: 'Bumbu Nasi Goreng', uom: 'g', qty: 15, available_qty: 2000 },
+      { product_id: 'c1', barcode: 'NASI-01', name: 'Nasi Putih', uom: 'g', qty_per_bom: 200, available_qty: 12000 },
+      { product_id: 'c2', barcode: 'TELUR-01', name: 'Telur Ayam', uom: 'pcs', qty_per_bom: 1, available_qty: 90 },
+      { product_id: 'c3', barcode: 'BUMBU-01', name: 'Bumbu Nasi Goreng', uom: 'g', qty_per_bom: 15, available_qty: 2000 },
     ],
   },
   p2: {
-    bom_id: 'b2',
-    bom_code: 'BOM-AB',
-    product_id: 'p2',
-    product_name: 'Ayam Bakar',
-    uom: 'Portion',
-    output_qty: 2,
+    bom_id: '2', bom_code: 'BOM-AB', bom_type: 'normal', product_id: 'p2', barcode: 'AYAM-01',
+    product_name: 'Ayam Bakar', bom_qty: 2, bom_uom: 'Portion',
     components: [
-      { product_id: 'c4', name: 'Ayam Potong', uom: 'g', qty: 600, available_qty: 8000 },
-      { product_id: 'c5', name: 'Bumbu Bakar', uom: 'g', qty: 50, available_qty: 1500 },
+      { product_id: 'c4', barcode: 'AYAMP-01', name: 'Ayam Potong', uom: 'g', qty_per_bom: 600, available_qty: 8000 },
+      { product_id: 'c5', barcode: 'BUMBUB-01', name: 'Bumbu Bakar', uom: 'g', qty_per_bom: 50, available_qty: 1500 },
     ],
   },
   p3: {
-    bom_id: 'b3',
-    bom_code: 'BOM-SM',
-    product_id: 'p3',
-    product_name: 'Sate Matang',
-    uom: 'Portion',
-    output_qty: 1,
+    bom_id: '3', bom_code: 'BOM-SM', bom_type: 'normal', product_id: 'p3', barcode: 'SATE-01',
+    product_name: 'Sate Matang', bom_qty: 1, bom_uom: 'Portion',
     components: [
-      { product_id: 'c6', name: 'Daging Sate', uom: 'g', qty: 150, available_qty: 450 },
-      { product_id: 'c7', name: 'Tusuk Sate', uom: 'pcs', qty: 5, available_qty: 400 },
+      { product_id: 'c6', barcode: 'DAGING-01', name: 'Daging Sate', uom: 'g', qty_per_bom: 150, available_qty: 450 },
+      { product_id: 'c7', barcode: 'TUSUK-01', name: 'Tusuk Sate', uom: 'pcs', qty_per_bom: 5, available_qty: 400 },
     ],
   },
+}
+
+/** Mirrors /kitchen/boms for a requested qty (default: one batch). */
+export function previewBom(bom, qty) {
+  const requested = qty ?? bom.bom_qty
+  const factor = requested / bom.bom_qty
+  const components = bom.components.map((c) => {
+    const required = Math.round(c.qty_per_bom * factor * 1000) / 1000
+    const shortage = Math.max(0, Math.round((required - c.available_qty) * 1000) / 1000)
+    return { ...c, required_qty: required, shortage_qty: shortage, ok: shortage === 0 }
+  })
+  return {
+    ...bom,
+    qty: requested,
+    uom: bom.bom_uom,
+    factor,
+    warehouse_id: '1',
+    warehouse_name: 'FOOM Pusat',
+    location_id: null,
+    location_name: '',
+    ok: components.every((c) => c.ok),
+    components,
+  }
+}
+
+/** /kitchen/productions/{id}/components for a mock MO: its BoM scaled to the MO qty, minus what has already been scrapped. */
+export function productionComponents(production, scraps) {
+  const bom = mockBoms[production.product_id]
+  if (!bom) return []
+  const factor = production.qty / bom.bom_qty
+  return bom.components.map((c, i) => {
+    const scrapped = scraps
+      .filter((s) => s.production_id === production.id && s.product_id === c.product_id)
+      .reduce((sum, s) => sum + s.qty, 0)
+    const toConsume = Math.round(c.qty_per_bom * factor * 1000) / 1000
+    return {
+      move_id: `${production.id}-${i + 1}`,
+      product_id: c.product_id,
+      barcode: c.barcode,
+      name: c.name,
+      uom: c.uom,
+      uom_id: '1',
+      to_consume_qty: toConsume,
+      reserved_qty: production.state === 'done' ? toConsume : 0,
+      picked: production.state === 'done',
+      available_qty: Math.max(0, c.available_qty - toConsume - scrapped),
+      scrapped_qty: scrapped,
+      state: production.state === 'done' ? 'done' : 'assigned',
+    }
+  })
 }

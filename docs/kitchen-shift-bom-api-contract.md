@@ -1,145 +1,78 @@
-# Kitchen — Shift master data & BoM preview: API contract (PROPOSED)
+# Kitchen — BoM preview, MO scrap, shifts & shift tasks: integration notes
 
-Status: **proposed — not implemented in `foom_fnb_api` yet.** A search of the addon found no shift or BoM endpoints. The KDS frontend (v10) is already built against this contract using MSW mocks and degrades gracefully if the endpoints are missing (see "Fallback behaviour").
+Status (2026-10-04): **integrated in KDS v13 against the backend dev's real endpoints**, tested against mocks that mirror their docs. **Not yet verified live on staging.** This replaces the earlier *proposed* contract (`GET /kitchen/shifts`, `shift_id` on kitchen sessions, a `foom.attendance.shift.task` model) — shifts and tasks turned out to live in the `foom_attendance` module with its own API, and BoM/scrap shipped in `foom_fnb_api`.
 
-Base: `/api/kds`, JWT bearer (same as the rest of `/kitchen/*`). Errors use the existing `{ "error": "<code>", "message": "..." }` envelope.
+## What KDS now calls
 
----
+| Endpoint | Module | Used for |
+|---|---|---|
+| `GET /api/kds/kitchen/boms` | foom_fnb_api | Pre-create BoM preview + ingredient checklist |
+| `GET /api/kds/kitchen/productions/{id}/components` | foom_fnb_api | Ingredients of a done MO (Close Kitchen) |
+| `POST /api/kds/kitchen/productions/{id}/scraps` | foom_fnb_api | Record scrap per ingredient |
+| `GET /api/kds/kitchen/productions/{id}/scraps` | foom_fnb_api | Client function exists; UI uses the session's `scraps[]` |
+| `POST /foom/attendance/api/login` | foom_attendance | Employee token (Kode Absensi + **PIN**) |
+| `POST /foom/attendance/api/shifts` | foom_attendance | Shift list incl. each shift's `tasks[]` |
 
-## 1. `GET /kitchen/shifts`
+Auth: KDS keeps sending its JWT bearer token to `/api/kds/*` (the docs say `X-API-Key`; bearer has been accepted wherever the key is). The attendance API is separate: token in the **body**, never a header/URL.
 
-Shift master data from Odoo model **`foom.attendance.shift`** (Attendances → Configuration → Shift). Read-only; the KDS never creates or edits shifts.
+## 1. BoM preview — `GET /kitchen/boms`
 
-Query: `company_id` (required — shifts are company-scoped).
+Query used: `company_id`, `product_id` (barcode also supported), `qty`, `warehouse_id` (the open session's warehouse). Read-only, reserves nothing.
 
-Response `200`:
+- Response: `bom_id, bom_code, bom_qty, bom_uom, qty, uom, factor, ok, components[]`; each component `product_id, barcode, name, uom, qty_per_bom, required_qty, available_qty, shortage_qty, ok`.
+- KDS shows `required_qty` as "Consumed" per ingredient (server-computed with Odoo's `bom.explode`, so it equals what the MO will consume — no client-side scaling any more) and an amber "Short — only N on hand (missing M)" hint when `shortage_qty > 0`. Hint only; `409 done_failed` stays the authority.
+- Request is keyed by qty, so editing the qty = a new cheap request.
+- Errors surfaced: `409 no_bom`, `404 not_found`, `400 bad_request` / `bom_mismatch`.
+- Checklist ticks are UI-only: never sent to or validated by the backend; they just keep "Create Manufacturing Order / Prep Meal" disabled until 100%.
 
-```json
-{
-  "company_id": "1",
-  "shifts": [
-    { "id": "3", "name": "Pagi", "code": "PAGI", "start_time": "08:00", "end_time": "17:00",
-      "crosses_midnight": false, "duration_hours": 9,
-      "tasks": [
-        { "id": "11", "name": "Check fridge & freezer temperature, log it", "description": "Chiller 0–4 °C, freezer ≤ −18 °C", "sequence": 1 },
-        { "id": "12", "name": "Prep base sauces and marinades", "sequence": 2 }
-      ] },
-    { "id": "5", "name": "Malam", "code": "MALAM", "start_time": "22:00", "end_time": "06:00",
-      "crosses_midnight": true, "duration_hours": 8, "tasks": [] }
-  ]
-}
-```
+## 2. Close Kitchen — MO list → ingredients → scrap
 
-Field mapping (Odoo form label → field):
+1. Close Kitchen lists this session's **done** manufacturing orders / prep meals, collapsed, each with a status chip: *Needs review* / *Scrap recorded* / *No scrap*.
+2. Tapping one loads `GET /productions/{id}/components` and shows each ingredient: name, "To consume X", "already scrapped Y", scrap qty + reason inputs. The finished good is never offered (the endpoint doesn't list it).
+3. **Record scrap** posts `items:[{product_id, qty, reason?}]` to `POST /productions/{id}/scraps` immediately — Odoo creates and validates the scrap; KDS refreshes components + session detail. All-or-nothing per request.
+4. **No scrap for this one** marks the MO reviewed client-side (nothing sent).
+5. Client-side policy kept: every done MO must be reviewed (scrap recorded, or "No scrap") before **Confirm & Close Kitchen** enables. Close then sends `scraps: []` (already recorded) plus the existing `cancel_pending` / `force` options.
+6. Errors shown inline: `400 not_a_component`, `409 scrap_failed` (e.g. not enough stock at that location), `401 invalid_employee_code`.
 
-| Odoo (form label)  | JSON field         | Notes |
-|--------------------|--------------------|-------|
-| Name               | `name`             | e.g. "Pagi" (screenshot shows "Pagi (08:00–17:00)" — that is the display name; send the plain name, the app adds the window itself) |
-| Code               | `code`             | optional |
-| Jam Masuk          | `start_time`       | float hours → `"HH:MM"` 24h |
-| Jam Pulang         | `end_time`         | float hours → `"HH:MM"` 24h |
-| Lintas Hari        | `crosses_midnight` | boolean |
-| Durasi             | `duration_hours`   | optional number |
-| Tasks (new, see below) | `tasks[]`      | Reminder checklist for the kitchen operator; `[]` when none |
-| Company            | (filter)           | only return shifts for `company_id` (+ shifts with no company, if the model allows that) |
+## 3. Shifts and shift tasks — `foom_attendance`
 
-Rules: only active shifts; ordered by `start_time`; `id` is a string; no pagination (a company has a handful).
-Errors: `400 bad_request` (missing `company_id`), `401`, `403` (no access to the company).
+- `POST /login {code, pin}` → `token` (12h) → `POST /shifts {token}` → `{timezone, shifts[]}`; each shift has `time_from/time_to`, `is_overnight`, `is_default`, `tasks[] {id, sequence, name, description}`. Company comes from the token's employee; tasks are display-only (no "mark done" endpoint — ticks stay on the tablet).
+- KDS maps it to its internal shape (string ids; `start_time/end_time/crosses_midnight`) in `src/lib/shifts.js`.
+- Base URL: `VITE_ATTENDANCE_API_URL`, else the KDS API's host + `/foom/attendance/api`.
+- **PIN requirement.** The shift API needs the employee's PIN, but KDS identifies people by Kode Absensi alone. So the Open Kitchen form has an *optional* "PIN Absensi" field next to the Kode:
+  - With PIN → one login + one `/shifts` call, then a Shift dropdown (pre-selects the shift running now, else the employee's default), a read-only preview of that shift's tasks, and the checklist after opening. The PIN is cleared from component state right after the request; the token is never stored.
+  - Without PIN, or if it fails → the old free-text Shift field; nothing is blocked.
+  - Joining a kitchen opened by someone else: with a PIN the matching shift (by name) is remembered for this tablet's checklist; without one the checklist page says there are no tasks.
+- The kitchen session itself still takes **free-text `shift`** (the chosen shift's name). No `shift_id` is sent — the kitchen API has none.
+- Shift Checklist page (`/shift-checklist`): tickable tasks + progress, stored per kitchen session on the tablet (persisted; next session starts clean). Header button on Board/Production shows done/total, hidden when no tasks.
 
-### Shift tasks (reminder checklist)
+## 4. Not used by KDS (noted from the same release)
 
-When an operator picks a shift on the Open Kitchen page, KDS lists "what you actually have to do this shift", and keeps that list as a tickable reminder on its own Shift Checklist page (`/shift-checklist`, separate from Production) for the whole session. The tasks are defined per shift in Odoo, so `foom.attendance.shift` needs a new child model (proposed name `foom.attendance.shift.task`, One2many `task_ids` on the shift):
+- `POST /orders/{no}/deliver` / removed `POST /orders/{no}/pay` (410), `GET /orders/fields` + `custom_fields` snake_case keys — KDS never calls these (it only moves order lines through kitchen states). Relevant to the external ordering app.
+- `GET /stock` / `POST /stock/check` `location_id` — KDS doesn't pass a location yet; add it if a kitchen should show per-shelf availability.
+- Deploy notes from the backend dev (module upgrade `-u foom_fnb_api`, chatter silenced for API traffic) are server-side only.
 
-| Field | JSON | Notes |
-|-------|------|-------|
-| `name` (Char, required) | `name` | e.g. "Check fridge & freezer temperature, log it" |
-| `description` (Text) | `description` | optional hint line |
-| `sequence` (Integer) | `sequence` | display order, ascending |
-| `active` (Boolean) | — | inactive tasks are not returned |
+## Open questions / todo
 
-Returned inline in `shifts[].tasks` (no separate endpoint; a shift has a handful). `tasks` may be omitted or `[]`. Task ticks are **UI-only** (kitchen operator's reminder): never sent to or validated by the backend, stored on the tablet per kitchen session, so the next shift starts with a clean list.
+### Needs a decision
+- [ ] **PIN on the kitchen gate.** Is typing the attendance PIN at the kitchen tablet acceptable? Alternative: backend adds a shift+tasks endpoint under `/api/kds` that works with the existing JWT (then no PIN field). Until decided, PIN stays optional.
+- [ ] Should the kitchen session store the chosen shift (e.g. `shift_id` on `POST /kitchen/sessions`)? Today it is only the free-text name, so a second tablet joining the session can only show the checklist if it also enters a PIN.
 
-## 2. `POST /kitchen/sessions` — accept `shift_id`
+### Backend / ops
+- [ ] CORS for the KDS origin on `/foom/attendance/api/*` (KDS calls it from the browser).
+- [ ] Confirm `foom_attendance` ≥ 18.0.1.1.0 is installed on staging and "Absensi Publik" is enabled; tasks filled under Absensi Publik ▸ Shift ▸ Task List.
+- [ ] Confirm `Authorization: Bearer` is accepted on the new `/kitchen/boms`, `/components`, `/scraps` endpoints (docs list `X-API-Key`).
 
-Add an optional `shift_id` to the existing body:
+### Frontend (KDS v13) — done
+- [x] BoM preview on the new contract (server `required_qty` / `shortage_qty`, qty + warehouse passed), checklist gating, wording.
+- [x] Close Kitchen: MO list → expandable ingredients → per-ingredient scrap via the new endpoints; review policy; inline errors.
+- [x] Shift picker + task preview from `foom_attendance` (PIN optional, free-text fallback); Shift Checklist page; header button.
+- [x] MSW mocks mirroring the real shapes (incl. integer ids, `ok:false` envelope, `not_a_component`, `scrap_failed`); 168 tests.
 
-```json
-{ "company_id": "1", "employee_code": "F102345", "shift_id": "3", "shift": "Pagi" }
-```
-
-- `shift_id` preferred. If present it must belong to `company_id` → otherwise `400 bad_request` ("unknown shift for this company").
-- Legacy free-text `shift` is still accepted (older clients, companies with no shifts configured). If both are sent, `shift_id` wins.
-- Store `shift_id` (Many2one `foom.attendance.shift`) on the kitchen session next to the existing text field.
-- Session responses (`POST /kitchen/sessions`, `GET /kitchen/sessions/{id}`, `whoami.open_session`): keep `shift` as the **display name** (so existing UI keeps working) and add `shift_id` (string or `null`).
-
-## 3. `GET /kitchen/boms`
-
-Pre-create checklist: the default Bill of Materials for a finished product.
-
-Query: `company_id` (required), `product_id` (required).
-
-Response `200`:
-
-```json
-{
-  "bom_id": "12", "bom_code": "BOM-NGS",
-  "product_id": "41", "product_name": "Nasi Goreng Spesial", "uom": "Portion",
-  "output_qty": 1,
-  "components": [
-    { "product_id": "7", "name": "Nasi Putih", "uom": "g", "qty": 200, "available_qty": 12000 }
-  ]
-}
-```
-
-- Source: the product's default `mrp.bom` for the company (type normal/manufacture), components = `bom_line_ids`.
-- `qty` is **exactly as stored on the BoM line, per `output_qty`** (Odoo `product_qty`). The client computes consumed qty = `qty / output_qty × qty_requested`, so it follows the qty field live without refetching.
-- `uom` = the line's UoM, not the product's default.
-- `available_qty` (optional) = free qty of the component in the kitchen warehouse (same source as `GET /stock`). Used only for an amber "short" hint; never blocks.
-- Nested/phantom BoMs: return the lines Odoo would actually consume (explode kits) — decide with backend, flag if not done.
-- Errors: `409 no_bom` (product has no BoM), `400 bad_request`, `404 product not found`, `401`.
-- `POST /kitchen/productions` already accepts `bom_id`; the client now always sends the `bom_id` it previewed.
-
-## Checklist ticks are NOT part of the API
-
-The operator's checkboxes are a UI-only todo. They are never sent to the backend and never validated by it; they only keep the "Create Manufacturing Order / Prep Meal" button disabled until 100% are ticked. The backend's authority on whether an MO can finish stays `409 done_failed`.
-
-## Fallback behaviour (frontend)
-
-- `/kitchen/shifts` errors or returns no shifts → the gate shows the old free-text "Shift (optional)" field. Opening the kitchen is never blocked by this.
-- `/kitchen/boms` errors/`no_bom` → the review step shows the message and a "Pick a different product" link; Create stays disabled. **If the backend ships without `/kitchen/boms`, products cannot be created from KDS v10** — so ship it before (or together with) v10, or keep v9 until then.
-- Default selected shift = the one whose window contains the current time (overnight-aware); the operator can change it or pick "No shift".
-
----
-
-## Todo breakdown
-
-### Backend (`foom_fnb_api`) — NOT started
-- [ ] **S1** Controller `GET /kitchen/shifts`: company-scoped read of `foom.attendance.shift`, active only, float→"HH:MM", `crosses_midnight`, `duration_hours`. ACL: same group as other `/kitchen/*`.
-- [ ] **S2** Add `shift_id` (Many2one `foom.attendance.shift`) to the kitchen session model; accept `shift_id` on `POST /kitchen/sessions` (validate company); keep text `shift` (fill with shift name when `shift_id` given); return both in session payloads and `whoami.open_session`.
-- [ ] **S8** New model `foom.attendance.shift.task` (shift_id, name, description, sequence, active) + One2many `task_ids` on `foom.attendance.shift`, editable in the Shift form (a "Tasks" tab); include `tasks[]` in `GET /kitchen/shifts` ordered by `sequence`, active only.
-- [ ] **S3** Confirm exact field names on `foom.attendance.shift` (names above are taken from the form labels: Name, Code, Jam Masuk, Jam Pulang, Lintas Hari, Durasi, Company) and handle shifts without a company.
-- [ ] **B1** Controller `GET /kitchen/boms`: resolve default `mrp.bom` for product+company (`mrp.bom._bom_find`), serialize lines with line UoM; `output_qty` = `product_qty`.
-- [ ] **B2** `available_qty` per component from the kitchen warehouse (reuse the `/stock` helper).
-- [ ] **B3** Decide kit/phantom explosion and multi-BoM selection; `409 no_bom` when none.
-- [ ] **B4** Verify `POST /kitchen/productions` with `bom_id` uses that BoM (and rejects a BoM that doesn't match the product).
-- [ ] **D1** Document both endpoints + `shift_id` in the addon's API docs and OpenAPI; Postman/HTTP examples.
-- [ ] **T1** Backend tests: company scoping, overnight shift serialization, unknown `shift_id`, `no_bom`, UoM conversion, access rights.
-
-### Frontend (kds-frontend v10–v12) — DONE
-- [x] Wording "Manufacturing Order / Prep Meal" across Production page, list, close panel.
-- [x] Two-step create flow: "Process manufacture order" → BoM preview with consumed qty + per-ingredient checkbox + progress; Create disabled until 100% ticked; empty BoM counts as complete; fresh checklist per run.
-- [x] `listShifts` / `getBomPreview` API + `useShifts` / `useBomPreview` hooks; `bom.js` / `shifts.js` helpers.
-- [x] Gate: shift dropdown (name · window), current-shift default, "No shift", free-text fallback; sends `shift_id`.
-- [x] Shift tasks: read-only preview under the dropdown on Open Kitchen (swaps when the shift changes).
-- [x] Separate **Shift Checklist** page (`/shift-checklist`): tickable tasks + progress bar, kept per kitchen session on the tablet (reload-safe, fresh each new session); header button on Board and Production shows done/total and is hidden when the shift has no tasks; page explains when there is no shift / no tasks.
-- [x] MSW mocks for both endpoints (company-scoped shifts, `no_bom`, unknown-shift 400).
-- [x] Tests: 146 passing (lib unit tests, gate shift picker + fallback, full create flow incl. gating, no-BoM, shortage).
-
-### Integration / QA — after backend ships
-- [ ] **Q1** Point KDS at staging; check shifts list matches Odoo Shift form for each company.
-- [ ] **Q2** Open a kitchen with a shift → confirm `shift_id` stored on the session in Odoo.
-- [ ] **Q7** Add tasks to a shift in Odoo → they appear on Open Kitchen when that shift is picked and as the checklist on the Shift Checklist page; reorder via `sequence`; archived task disappears.
-- [ ] **Q3** Overnight shift (Lintas Hari): default selection at 23:30 and 02:00.
-- [ ] **Q4** BoM preview for products with different `output_qty` and UoMs; compare consumed qty with what Odoo actually consumes on the MO.
-- [ ] **Q5** Product without BoM → clear message, Create stays disabled.
-- [ ] **Q6** Shortage path still ends in `done_failed` with Retry/Cancel.
+### QA after staging is reachable
+- [ ] Q1 BoM preview for 2–3 real products (different `bom_qty`, UoM g↔kg): `required_qty` equals the MO's `move_raw_ids` after creating it.
+- [ ] Q2 Scrap a component on a done MO: Odoo shows a raw-material scrap (`raw_material_production_id`), location = MO source location; "already scrapped" updates.
+- [ ] Q3 Try scrapping more than on hand → `scrap_failed` message is readable.
+- [ ] Q4 Shifts: correct PIN lists the right shifts + tasks; wrong PIN / attendance disabled → free-text fallback with a clear message.
+- [ ] Q5 Overnight shift pre-selection at 23:30 and 02:00; employee default shift pre-selected outside any window.
+- [ ] Q6 Close Kitchen end to end with one MO scrapped and one "No scrap".

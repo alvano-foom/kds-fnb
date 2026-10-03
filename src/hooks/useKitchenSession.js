@@ -7,9 +7,11 @@ import {
   createProduction,
   setProductionState,
   closeKitchenSession,
-  listShifts,
   getBomPreview,
+  getProductionComponents,
+  createProductionScraps,
 } from '../api/kitchen'
+import { attendanceLogin, listAttendanceShifts } from '../api/attendance'
 import { useKitchenSessionStore } from '../store/kitchenSessionStore'
 import { useTenantStore } from '../store/tenantStore'
 
@@ -33,38 +35,68 @@ export function useWhoami() {
 export function useOpenKitchenSession() {
   const companyId = useTenantStore((s) => s.companyId)
   return useMutation({
-    mutationFn: ({ employeeCode, shift, shiftId }) => openKitchenSession({ companyId, employeeCode, shift, shiftId }),
+    mutationFn: ({ employeeCode, shift }) => openKitchenSession({ companyId, employeeCode, shift }),
   })
 }
 
 /**
- * Shift master data (Odoo foom.attendance.shift) for the Open Kitchen
- * form's picker. Deliberately never throws into the UI: until the backend
- * ships /kitchen/shifts (or for a company with no shifts configured) the
- * query just errors/returns [], and the form falls back to its old free-text
- * Shift field instead of blocking anyone from opening the kitchen.
+ * Loads the shift list (with each shift's task list) from foom_attendance:
+ * logs in with the employee's Kode Absensi + PIN, then reads /shifts with
+ * the returned token. The token isn't kept anywhere — one login, one read.
+ * Never required: if it fails (wrong PIN, attendance disabled, service
+ * down) the Open Kitchen form falls back to its free-text Shift field.
  */
-export function useShifts() {
+export function useLoadShifts() {
+  return useMutation({
+    mutationFn: async ({ code, pin }) => {
+      const { token } = await attendanceLogin({ code, pin })
+      return listAttendanceShifts({ token })
+    },
+  })
+}
+
+/**
+ * BoM preview for `qty` of the chosen product — drives the pre-create
+ * checklist. Off until a product and a positive qty are set. Keyed by qty
+ * because the server does the scaling (exactly like the MO will), so a
+ * different qty is a different, cheap, read-only request.
+ */
+export function useBomPreview(productId, qty) {
   const companyId = useTenantStore((s) => s.companyId)
+  const warehouseId = useKitchenSessionStore((s) => s.session?.warehouse_id)
   return useQuery({
-    queryKey: ['kitchen-shifts', companyId],
-    queryFn: () => listShifts({ companyId }),
-    enabled: Boolean(companyId),
-    select: (data) => data?.shifts ?? [],
-    staleTime: 5 * 60_000, // shifts are master data — they change on the order of weeks
+    queryKey: ['kitchen-bom', companyId, productId, qty, warehouseId],
+    queryFn: () => getBomPreview({ companyId, productId, qty, warehouseId }),
+    enabled: Boolean(companyId && productId && qty > 0),
+    staleTime: 30_000,
+    retry: false, // a 409 no_bom is a real answer, not a blip worth retrying
+  })
+}
+
+export function productionComponentsQueryKey(productionId) {
+  return ['kitchen-production-components', productionId]
+}
+
+/** Ingredients of one MO (+ how much of each is already scrapped). Pass null to keep it off until the row is expanded. */
+export function useProductionComponents(productionId) {
+  return useQuery({
+    queryKey: productionComponentsQueryKey(productionId),
+    queryFn: () => getProductionComponents(productionId),
+    enabled: Boolean(productionId),
     retry: false,
   })
 }
 
-/** Default BoM + components for the chosen product — drives the pre-create checklist. Off until a product is picked. */
-export function useBomPreview(productId) {
-  const companyId = useTenantStore((s) => s.companyId)
-  return useQuery({
-    queryKey: ['kitchen-bom', companyId, productId],
-    queryFn: () => getBomPreview({ companyId, productId }),
-    enabled: Boolean(companyId && productId),
-    staleTime: 60_000,
-    retry: false, // a 409 no_bom is a real answer, not a blip worth retrying
+/** Records scrap for one MO's ingredients; refreshes that MO's components and the session detail (its scraps list drives "needs scrap"). */
+export function useCreateProductionScraps() {
+  const queryClient = useQueryClient()
+  const session = useKitchenSessionStore((s) => s.session)
+  return useMutation({
+    mutationFn: ({ productionId, employeeCode, items }) => createProductionScraps(productionId, { employeeCode, items }),
+    onSuccess: (_data, { productionId }) => {
+      queryClient.invalidateQueries({ queryKey: productionComponentsQueryKey(productionId) })
+      queryClient.invalidateQueries({ queryKey: sessionDetailQueryKey(session?.id) })
+    },
   })
 }
 

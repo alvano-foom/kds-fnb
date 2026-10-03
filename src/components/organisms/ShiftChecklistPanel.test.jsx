@@ -19,13 +19,20 @@ function renderPanel() {
   )
 }
 
-async function startSession(opts) {
-  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', ...opts })
+import { mockShifts } from '../../api/mocks/fixtures'
+import { normalizeAttendanceShift } from '../../lib/shifts'
+
+/** Opens a kitchen session and remembers a mock shift for it, the way the gate does. */
+async function startSession({ shiftId } = {}) {
+  const raw = mockShifts.find((s) => s.id === shiftId)
+  const shift = raw ? normalizeAttendanceShift(raw) : null
+  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: shift?.name ?? 'Shift 1' })
   useKitchenSessionStore.getState().setSession({
     session,
     employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
     companyId: 'c1',
   })
+  if (shift) useShiftChecklistStore.getState().setShift(session.id, shift)
   return session
 }
 
@@ -37,7 +44,7 @@ describe('ShiftChecklistPanel', () => {
   })
 
   it("shows the opened shift's tasks as a tickable checklist with progress", async () => {
-    await startSession({ shiftId: 's1' })
+    await startSession({ shiftId: 1 })
     const user = userEvent.setup()
     renderPanel()
 
@@ -55,7 +62,7 @@ describe('ShiftChecklistPanel', () => {
   })
 
   it('ticks survive a remount (e.g. tablet reload) and are stored against the session', async () => {
-    const first = await startSession({ shiftId: 's2' })
+    const first = await startSession({ shiftId: 2 })
     const user = userEvent.setup()
     const { unmount } = renderPanel()
     await user.click((await screen.findAllByRole('checkbox'))[0])
@@ -66,30 +73,23 @@ describe('ShiftChecklistPanel', () => {
     expect(await screen.findByText(/1 of 3 done/i)).toBeInTheDocument()
   })
 
-  it('says so when the kitchen was opened with a free-text shift (no checklist)', async () => {
+  it('says so when this tablet does not know the shift (free text, or joined without a PIN)', async () => {
     await startSession({ shift: 'Shift 1' })
     renderPanel()
     expect(await screen.findByText(/no tasks for this shift/i)).toBeInTheDocument()
-    expect(screen.getByText(/opened without a shift|nothing is set up for shift 1/i)).toBeInTheDocument()
+    expect(screen.getByText(/nothing is set up for shift 1/i)).toBeInTheDocument()
     expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
   })
 
   it('says so when the shift has no tasks in Odoo', async () => {
-    const { mockShifts } = await import('../../api/mocks/fixtures')
-    const shift = mockShifts.find((s) => s.id === 's1')
-    const original = shift.tasks
-    shift.tasks = []
-    try {
-      await startSession({ shiftId: 's1' })
-      renderPanel()
-      expect(await screen.findByText(/nothing is set up for pagi in odoo yet/i)).toBeInTheDocument()
-    } finally {
-      shift.tasks = original
-    }
+    const session = await startSession()
+    useShiftChecklistStore.getState().setShift(session.id, { id: '1', name: 'Pagi', tasks: [] })
+    renderPanel()
+    expect(await screen.findByText(/nothing is set up for pagi in odoo yet/i)).toBeInTheDocument()
   })
 
   it('has a progress bar that follows the ticks', async () => {
-    await startSession({ shiftId: 's3' })
+    await startSession({ shiftId: 3 })
     const user = userEvent.setup()
     renderPanel()
     expect(await screen.findByRole('progressbar')).toHaveAttribute('aria-valuenow', '0')

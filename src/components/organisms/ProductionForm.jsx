@@ -40,7 +40,7 @@ export function ProductionForm() {
 
   const qtyNumber = Number(qty)
   const reviewing = step === 'review'
-  const bomQuery = useBomPreview(reviewing ? product?.product_id : null)
+  const bomQuery = useBomPreview(reviewing ? product?.product_id : null, reviewing ? qtyNumber : null)
   const bom = bomQuery.data
 
   const isBusy = createProduction.isPending || setProductionState.isPending
@@ -173,7 +173,7 @@ export function ProductionForm() {
             </p>
           )}
 
-          {bom && <BomChecklist bom={bom} qty={qtyNumber} checked={checked} onToggle={toggle} />}
+          {bom && <BomChecklist bom={bom} checked={checked} onToggle={toggle} />}
 
           {notice && (
             <p

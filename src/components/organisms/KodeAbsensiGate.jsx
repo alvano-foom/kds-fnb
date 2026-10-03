@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useWhoami, useOpenKitchenSession, useShifts } from '../../hooks/useKitchenSession'
-import { findCurrentShift, formatShiftWindow } from '../../lib/shifts'
+import { useWhoami, useOpenKitchenSession, useLoadShifts } from '../../hooks/useKitchenSession'
+import { formatShiftWindow, pickInitialShift } from '../../lib/shifts'
 import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
+import { useShiftChecklistStore } from '../../store/shiftChecklistStore'
 import { useTenantStore } from '../../store/tenantStore'
 import { ShiftTaskList } from '../molecules/ShiftTaskList'
 import { FormField } from '../molecules/FormField'
@@ -22,8 +23,10 @@ export function KodeAbsensiGate() {
   const navigate = useNavigate()
   const companyId = useTenantStore((s) => s.companyId)
   const setSession = useKitchenSessionStore((s) => s.setSession)
+  const setShiftSnapshot = useShiftChecklistStore((s) => s.setShift)
 
   const [code, setCode] = useState('')
+  const [pin, setPin] = useState('') // only used to load shifts from foom_attendance; cleared right after
   const [shift, setShift] = useState('') // free text — only used when there are no shifts from Odoo
   const [shiftId, setShiftId] = useState(null) // null = not touched yet → follow the current-time default
   const [checked, setChecked] = useState(null) // whoami result once confirmed
@@ -31,23 +34,37 @@ export function KodeAbsensiGate() {
   const whoami = useWhoami()
   const openSession = useOpenKitchenSession()
 
-  // Shifts come from Odoo's foom.attendance.shift. If the endpoint isn't
-  // there yet (or the company has none), the list is empty and we fall
-  // back to the old free-text field — opening the kitchen is never blocked.
-  const shiftsQuery = useShifts()
-  const shifts = useMemo(() => shiftsQuery.data ?? [], [shiftsQuery.data])
+  // Shifts (and their task lists) come from foom_attendance, whose API needs
+  // the employee's PIN as well as the Kode Absensi. The PIN is optional: with
+  // it we offer a shift picker + task preview; without it (or if loading
+  // fails) the form keeps its free-text Shift field and nothing is blocked.
+  const loadShifts = useLoadShifts()
+  const shifts = useMemo(() => loadShifts.data?.shifts ?? [], [loadShifts.data])
   const hasShifts = shifts.length > 0
-  const defaultShift = useMemo(() => findCurrentShift(shifts), [shifts])
+  const defaultShift = useMemo(() => pickInitialShift(shifts), [shifts])
   const selectedShiftId = shiftId ?? defaultShift?.id ?? ''
-  const pickedShift = hasShifts ? shifts.find((s) => s.id === selectedShiftId) : null
+  const pickedShift = hasShifts ? shifts.find((s) => s.id === selectedShiftId) ?? null : null
 
   function handleCheck(e) {
     e.preventDefault()
     setChecked(null)
-    whoami.mutate(code.trim(), { onSuccess: setChecked })
+    setShiftId(null)
+    loadShifts.reset()
+    const typedPin = pin.trim()
+    whoami.mutate(code.trim(), {
+      onSuccess: (result) => {
+        setChecked(result)
+        if (typedPin) loadShifts.mutate({ code: code.trim(), pin: typedPin })
+      },
+    })
+    setPin('') // never keep the PIN in component state longer than the request needs it
   }
 
   function handleContinueExisting() {
+    // Joining a kitchen someone else opened: if we know the shifts (PIN given), remember the matching one so this tablet can show its checklist too.
+    const joined = checked.open_session
+    const match = hasShifts ? shifts.find((x) => x.name.toLowerCase() === (joined.shift || '').toLowerCase()) : null
+    if (match) setShiftSnapshot(joined.id, match)
     setSession({
       session: checked.open_session,
       employee: { ...checked.employee, code: code.trim() },
@@ -59,11 +76,10 @@ export function KodeAbsensiGate() {
   function handleOpen() {
     const picked = pickedShift
     openSession.mutate(
-      hasShifts
-        ? { employeeCode: code.trim(), shiftId: picked?.id, shift: picked?.name }
-        : { employeeCode: code.trim(), shift: shift.trim() || undefined },
+      { employeeCode: code.trim(), shift: (hasShifts ? picked?.name : shift.trim()) || undefined },
       {
         onSuccess: (session) => {
+          if (picked) setShiftSnapshot(session.id, picked)
           setSession({ session, employee: { ...checked.employee, code: code.trim() }, companyId })
           navigate('/production', { replace: true })
         },
@@ -73,6 +89,8 @@ export function KodeAbsensiGate() {
 
   function handleChangeCode() {
     setChecked(null)
+    setShiftId(null)
+    loadShifts.reset()
   }
 
   if (checked) {
@@ -122,6 +140,12 @@ export function KodeAbsensiGate() {
                 />
               </FormField>
             )}
+            {loadShifts.isPending && <p className="text-xs text-gray-400">Loading your shifts…</p>}
+            {loadShifts.isError && (
+              <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Couldn't load shifts: {loadShifts.error?.message}. You can still type the shift name.
+              </p>
+            )}
             {hasShifts && pickedShift?.tasks?.length > 0 && (
               <div className="space-y-1.5">
                 <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -158,6 +182,18 @@ export function KodeAbsensiGate() {
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="e.g. F102345"
+        />
+      </FormField>
+
+      <FormField label="PIN Absensi (optional)" htmlFor="att-pin">
+        <Input
+          id="att-pin"
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="Only needed to pick a shift and see its tasks"
         />
       </FormField>
 

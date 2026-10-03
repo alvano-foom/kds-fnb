@@ -1,4 +1,4 @@
-import { checklistProgress, consumedQty, isShort } from '../../lib/bom'
+import { checklistProgress } from '../../lib/bom'
 
 /**
  * The kitchen operator's pre-flight todo: every ingredient the BoM says
@@ -8,11 +8,13 @@ import { checklistProgress, consumedQty, isShort } from '../../lib/bom'
  * it; the only thing they gate is the Create button in ProductionForm,
  * which stays disabled until progress hits 100%.
  *
- * `available_qty` (when the backend provides it) only drives an amber
- * "short" hint — it does not block anything, since the real authority on
- * whether the MO can finish is Odoo itself (409 done_failed).
+ * Quantities come straight from GET /kitchen/boms (`required_qty` — computed
+ * server-side with Odoo's own BoM explosion, so it is exactly what the MO
+ * will consume). `shortage_qty` only drives an amber "short" hint — it does
+ * not block anything, since the real authority on whether the MO can finish
+ * is Odoo itself (409 done_failed).
  */
-export function BomChecklist({ bom, qty, checked, onToggle }) {
+export function BomChecklist({ bom, checked, onToggle }) {
   const total = bom.components.length
   const progress = checklistProgress(total, checked.size)
 
@@ -43,8 +45,8 @@ export function BomChecklist({ bom, qty, checked, onToggle }) {
 
       <ul className="divide-y divide-gray-100 rounded-lg border border-gray-200">
         {bom.components.map((c) => {
-          const consumed = consumedQty(c, bom.output_qty, qty)
-          const short = isShort(c, bom.output_qty, qty)
+          const consumed = c.required_qty
+          const short = c.shortage_qty > 0
           const isChecked = checked.has(c.product_id)
           return (
             <li key={c.product_id}>
@@ -66,7 +68,7 @@ export function BomChecklist({ bom, qty, checked, onToggle }) {
                   </span>
                   {short && (
                     <span className="mt-0.5 block text-xs font-medium text-amber-700">
-                      Short — only {c.available_qty} {c.uom} on hand
+                      Short — only {c.available_qty} {c.uom} on hand (missing {c.shortage_qty})
                     </span>
                   )}
                 </span>

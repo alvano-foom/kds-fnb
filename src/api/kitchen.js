@@ -17,44 +17,63 @@ export function whoami({ companyId, employeeCode }) {
 }
 
 /**
- * `shiftId` (foom.attendance.shift id, from listShifts below) is the
- * preferred way to say which shift this is; `shift` (free text) stays
- * accepted so a backend without the shift endpoint yet — or a company
- * with no shifts configured — still works exactly as before.
+ * `shift` is free text on the kitchen API (the display name of the shift the
+ * operator picked — the shift list itself comes from foom_attendance, see
+ * api/attendance.js).
  */
-export function openKitchenSession({ companyId, employeeCode, shift, shiftId }) {
+export function openKitchenSession({ companyId, employeeCode, shift }) {
   return apiFetch('/kitchen/sessions', {
     method: 'POST',
-    body: JSON.stringify({ company_id: companyId, employee_code: employeeCode, shift, shift_id: shiftId }),
+    body: JSON.stringify({ company_id: companyId, employee_code: employeeCode, shift }),
   })
 }
 
 /**
- * Shift master data from Odoo's foom.attendance.shift (Attendances →
- * Configuration → Shift). NOT in the foom_fnb_api docs yet — this is the
- * proposed contract, see docs/kitchen-shift-bom-api-contract.md.
- * @returns {Promise<{company_id: string, shifts: {id: string, name: string, code?: string, start_time: string, end_time: string, crosses_midnight: boolean, duration_hours?: number}[]}>}
- */
-export function listShifts({ companyId } = {}) {
-  const params = new URLSearchParams()
-  if (companyId) params.set('company_id', companyId)
-  return apiFetch(`/kitchen/shifts?${params.toString()}`)
-}
-
-/**
- * BOM preview for the pre-create checklist: the finished product's
- * default BoM and its components, quantities expressed per `output_qty`
- * of finished product (the caller scales them by the qty being made — see
- * src/lib/bom.js). NOT in the foom_fnb_api docs yet — proposed contract,
- * see docs/kitchen-shift-bom-api-contract.md. 409 `no_bom` when the
- * product has no Bill of Materials.
+ * Read-only BoM preview for the pre-create checklist: which components get
+ * consumed for `qty` of the finished product, with free qty per component.
+ * Safe to call repeatedly — creates nothing and reserves nothing. Same
+ * numbers the MO will get (Odoo's bom.explode). `shortage_qty` / `ok` are
+ * hints only; 409 done_failed on finishing the MO stays the authority.
+ * Errors: 409 no_bom, 400 bom_mismatch, 404 not_found.
  * @returns {Promise<import('../lib/bom').BomPreview>}
  */
-export function getBomPreview({ companyId, productId }) {
+export function getBomPreview({ companyId, productId, qty, warehouseId }) {
   const params = new URLSearchParams()
   if (companyId) params.set('company_id', companyId)
   params.set('product_id', productId)
+  if (qty != null) params.set('qty', String(qty))
+  if (warehouseId) params.set('warehouse_id', warehouseId)
   return apiFetch(`/kitchen/boms?${params.toString()}`)
+}
+
+/**
+ * The ingredients one MO consumes (the finished good is deliberately not in
+ * the list) with how much of each has already been scrapped — the data
+ * source for the Close Kitchen scrap screen.
+ */
+export function getProductionComponents(productionId) {
+  return apiFetch(`/kitchen/productions/${productionId}/components`)
+}
+
+/**
+ * Scrap ingredients of one MO. Each item's product must be a component of
+ * that MO — the finished good is rejected (400 not_a_component). Scraps are
+ * created and validated immediately; the response carries the refreshed
+ * `components`. Errors: 401 invalid_employee_code, 409 scrap_failed (e.g.
+ * not enough stock at that location).
+ * @param {string} productionId
+ * @param {{employeeCode: string, items: {product_id: string, qty: number, reason?: string}[]}} opts
+ */
+export function createProductionScraps(productionId, { employeeCode, items }) {
+  return apiFetch(`/kitchen/productions/${productionId}/scraps`, {
+    method: 'POST',
+    body: JSON.stringify({ employee_code: employeeCode, items }),
+  })
+}
+
+/** Every scrap ever recorded against one MO, newest first. */
+export function listProductionScraps(productionId) {
+  return apiFetch(`/kitchen/productions/${productionId}/scraps`)
 }
 
 /** Full detail incl. productions[], scraps[], logs[] — the source of truth for the Production page's list. */

@@ -25,13 +25,20 @@ function renderLink() {
   )
 }
 
-async function startSession(opts) {
-  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', ...opts })
+import { mockShifts } from '../../api/mocks/fixtures'
+import { normalizeAttendanceShift } from '../../lib/shifts'
+
+/** Opens a kitchen session and remembers a mock shift for it, the way the gate does. */
+async function startSession({ shiftId } = {}) {
+  const raw = mockShifts.find((s) => s.id === shiftId)
+  const shift = raw ? normalizeAttendanceShift(raw) : null
+  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: shift?.name ?? 'Shift 1' })
   useKitchenSessionStore.getState().setSession({
     session,
     employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
     companyId: 'c1',
   })
+  if (shift) useShiftChecklistStore.getState().setShift(session.id, shift)
   return session
 }
 
@@ -43,8 +50,8 @@ describe('ShiftChecklistLink', () => {
   })
 
   it('shows done/total and opens the checklist page', async () => {
-    const session = await startSession({ shiftId: 's3' })
-    useShiftChecklistStore.getState().toggle(session.id, 's3t1')
+    const session = await startSession({ shiftId: 3 })
+    useShiftChecklistStore.getState().toggle(session.id, '31')
     const user = userEvent.setup()
     renderLink()
 
@@ -55,7 +62,7 @@ describe('ShiftChecklistLink', () => {
   })
 
   it('is hidden when the kitchen has no shift tasks', async () => {
-    await startSession({ shift: 'Shift 1' })
+    await startSession()
     renderLink()
     await new Promise((r) => setTimeout(r, 50))
     expect(screen.queryByRole('button', { name: /shift checklist/i })).not.toBeInTheDocument()

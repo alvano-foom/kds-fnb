@@ -9,6 +9,9 @@ import {
   mockKitchenProducts,
   mockShifts,
   mockBoms,
+  previewBom,
+  productionComponents,
+  MOCK_ATTENDANCE_PIN,
   kitchenSessions,
   openSessionByCompany,
   productionIndex,
@@ -19,6 +22,9 @@ import {
   nextProductionId,
   nextProductionName,
 } from './fixtures'
+
+/** attendance token -> employee, for the mock /foom/attendance/api endpoints */
+const attendanceTokens = new Map()
 
 // Access tokens expire fast on purpose (60s) so the silent-refresh flow in
 // useAuth actually gets exercised during normal dev use, not just in tests.
@@ -144,11 +150,9 @@ export const handlers = [
   http.post('/api/kitchen/sessions', async ({ request }) => {
     const userId = requireAuth(request)
     if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
-    const { company_id, employee_code, shift, shift_id } = await request.json()
+    const { company_id, employee_code, shift } = await request.json()
     const employee = findEmployeeByCode(employee_code)
     if (!employee) return errorResponse(401, 'invalid_employee_code', 'Kode absensi tidak dikenal.')
-    const shiftRecord = shift_id ? mockShifts.find((x) => x.id === shift_id && x.company_id === company_id) : null
-    if (shift_id && !shiftRecord) return errorResponse(400, 'bad_request', `Unknown shift_id "${shift_id}" for this company.`)
 
     const existingId = openSessionByCompany.get(company_id)
     if (existingId) {
@@ -162,9 +166,7 @@ export const handlers = [
       id,
       name: nextKitchenSessionName(),
       state: 'open',
-      // `shift` stays the display name (string) whichever way it was chosen; shift_id is the structured link.
-      shift: shiftRecord ? shiftRecord.name : shift || '',
-      shift_id: shiftRecord ? shiftRecord.id : null,
+      shift: shift || '', // free text, like the real kitchen API — the shift list lives in foom_attendance
       warehouse_id: 'w1',
       company_id,
       opened_by: { id: employee.id, name: employee.name },
@@ -310,24 +312,120 @@ export const handlers = [
     return HttpResponse.json(session)
   }),
 
-  http.get('/api/kitchen/shifts', ({ request }) => {
-    const userId = requireAuth(request)
-    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
-    const companyId = new URL(request.url).searchParams.get('company_id')
-    if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
-    const shifts = mockShifts.filter((s) => s.company_id === companyId).map(({ company_id: _omit, ...rest }) => rest)
-    return HttpResponse.json({ company_id: companyId, shifts })
-  }),
-
   http.get('/api/kitchen/boms', ({ request }) => {
     const userId = requireAuth(request)
     if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
     const url = new URL(request.url)
+    if (!url.searchParams.get('company_id')) return errorResponse(400, 'bad_request', 'company_id is required.')
     const productId = url.searchParams.get('product_id')
-    if (!productId) return errorResponse(400, 'bad_request', 'product_id is required.')
-    const bom = mockBoms[productId]
+    const barcode = url.searchParams.get('barcode')
+    if (!productId && !barcode) return errorResponse(400, 'bad_request', 'barcode or product_id is required.')
+    const qtyParam = url.searchParams.get('qty')
+    const qty = qtyParam == null ? undefined : Number(qtyParam)
+    if (qty !== undefined && !(qty > 0)) return errorResponse(400, 'bad_request', 'qty must be a number > 0.')
+    const known = mockKitchenProducts.find((p) => p.product_id === productId) || null
+    if (productId && !known) return errorResponse(404, 'not_found', 'Product not found.')
+    const bom = Object.values(mockBoms).find((b) => b.product_id === productId || b.barcode === barcode)
     if (!bom) return errorResponse(409, 'no_bom', 'Produk tidak punya Bill of Materials.')
-    return HttpResponse.json(bom)
+    return HttpResponse.json(previewBom(bom, qty))
+  }),
+
+  http.get('/api/kitchen/productions/:id/components', ({ request, params }) => {
+    const userId = requireAuth(request)
+    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
+    const entry = productionIndex.get(params.id)
+    if (!entry) return errorResponse(404, 'not_found', 'Production not found.')
+    const session = kitchenSessions.get(entry.sessionId)
+    const production = session.productions.find((p) => p.id === params.id)
+    return HttpResponse.json({
+      production_id: production.id,
+      name: production.name,
+      state: production.state,
+      product_id: production.product_id,
+      product_name: production.product_name,
+      qty: production.qty,
+      uom: production.uom,
+      components: productionComponents(production, session.scraps),
+    })
+  }),
+
+  http.get('/api/kitchen/productions/:id/scraps', ({ request, params }) => {
+    const userId = requireAuth(request)
+    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
+    const entry = productionIndex.get(params.id)
+    if (!entry) return errorResponse(404, 'not_found', 'Production not found.')
+    const session = kitchenSessions.get(entry.sessionId)
+    const production = session.productions.find((p) => p.id === params.id)
+    const scraps = session.scraps.filter((x) => x.production_id === params.id).reverse()
+    return HttpResponse.json({ production_id: production.id, name: production.name, scraps })
+  }),
+
+  http.post('/api/kitchen/productions/:id/scraps', async ({ request, params }) => {
+    const userId = requireAuth(request)
+    if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
+    const entry = productionIndex.get(params.id)
+    if (!entry) return errorResponse(404, 'not_found', 'Production not found.')
+    const session = kitchenSessions.get(entry.sessionId)
+    const production = session.productions.find((p) => p.id === params.id)
+    const { employee_code, items } = await request.json()
+    const employee = findEmployeeByCode(employee_code)
+    if (!employee) return errorResponse(401, 'invalid_employee_code', 'Kode absensi tidak dikenal.')
+    if (!Array.isArray(items) || items.length === 0) {
+      return errorResponse(400, 'bad_request', 'items must be a non-empty list.')
+    }
+
+    // Validate everything before writing anything — the real endpoint is all-or-nothing per request.
+    const components = productionComponents(production, session.scraps)
+    const accepted = []
+    for (const item of items) {
+      if (!(Number(item.qty) > 0)) return errorResponse(400, 'bad_request', 'qty must be a number > 0.')
+      const comp = components.find((c) => c.product_id === item.product_id || (item.barcode && c.barcode === item.barcode))
+      if (!comp) {
+        const finished = item.product_id === production.product_id
+        return errorResponse(
+          400,
+          'not_a_component',
+          finished
+            ? `${production.product_name} is what ${production.name} produces, not one of its ingredients. Scrap a component instead, or send "allow_finished": true if the finished goods really are being thrown away.`
+            : `${item.product_id ?? item.barcode} is not a component of ${production.name}. Call GET /kitchen/productions/${production.id}/components for the list.`,
+        )
+      }
+      if (Number(item.qty) > comp.available_qty) {
+        return errorResponse(409, 'scrap_failed', `Not enough ${comp.name} in stock to scrap ${item.qty} ${comp.uom}.`)
+      }
+      accepted.push({ comp, item })
+    }
+
+    const created = accepted.map(({ comp, item }, i) => {
+      const n = session.scraps.length + i + 1
+      const record = {
+        id: `sp${n}`,
+        name: `SP/${String(n).padStart(5, '0')}`,
+        product_id: comp.product_id,
+        barcode: comp.barcode,
+        product_name: comp.name,
+        qty: Number(item.qty),
+        uom: comp.uom,
+        reason: item.reason || '',
+        state: 'done',
+        production_id: production.id,
+        date_done: new Date().toISOString(),
+        scrapped_by: employee.name,
+      }
+      return record
+    })
+    session.scraps.push(...created)
+    session.scrap_count = session.scraps.length
+    session.logs.push({ action: 'scrap', employee: employee.name, at: new Date().toISOString(), record: production.name })
+    return HttpResponse.json(
+      {
+        production_id: production.id,
+        name: production.name,
+        scraps: created,
+        components: productionComponents(production, session.scraps),
+      },
+      { status: 201 },
+    )
   }),
 
   http.get('/api/stock', ({ request }) => {
@@ -345,5 +443,41 @@ export const handlers = [
       warehouse_name: 'Main Warehouse',
       products,
     })
+  }),
+  // -------------------------------------------------------------------
+  // foom_attendance public API (separate from /api/kds): token login with
+  // Kode Absensi + PIN, then POST /shifts. Plain JSON, {ok, error, message}.
+  // -------------------------------------------------------------------
+
+  http.post('/foom/attendance/api/login', async ({ request }) => {
+    const { code, pin } = await request.json()
+    const employee = findEmployeeByCode(code)
+    if (!employee || pin !== MOCK_ATTENDANCE_PIN) {
+      return HttpResponse.json(
+        { ok: false, error: 'invalid_credentials', message: 'Kode atau PIN salah.' },
+        { status: 401 },
+      )
+    }
+    const token = `att-${employee.id}-${Math.random().toString(36).slice(2, 10)}`
+    attendanceTokens.set(token, employee)
+    return HttpResponse.json({
+      ok: true,
+      token,
+      expire_at: new Date(Date.now() + 12 * 3600_000).toISOString().slice(0, 19).replace('T', ' '),
+      employee: { name: employee.name, code: employee.code },
+    })
+  }),
+
+  http.post('/foom/attendance/api/shifts', async ({ request }) => {
+    const { token } = await request.json()
+    const employee = attendanceTokens.get(token)
+    if (!employee) {
+      return HttpResponse.json(
+        { ok: false, error: 'unauthorized', message: 'Sesi berakhir. Silakan masuk lagi.' },
+        { status: 401 },
+      )
+    }
+    const shifts = mockShifts.filter((x) => x.company_id === employee.company_id).map(({ company_id: _omit, ...rest }) => rest)
+    return HttpResponse.json({ ok: true, timezone: 'Asia/Jakarta', shifts })
   }),
 ]
