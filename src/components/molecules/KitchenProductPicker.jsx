@@ -9,6 +9,12 @@ import { Input } from '../atoms/Input'
  * to each option is the point: it lets someone avoid starting a
  * Manufacturing Order that's obviously going to run short, before they've
  * even submitted it.
+ *
+ * Every product stays selectable, including ones with 0 on hand: this is the
+ * list of things to *make*, so a finished good with nothing in stock is the
+ * normal case, not a reason to block it. (Earlier versions greyed those out
+ * from `is_available`, which made every prep item un-pickable.) Whether the
+ * product can actually be made is decided by the BoM step that follows.
  */
 export function KitchenProductPicker({ selected, onSelect }) {
   const [term, setTerm] = useState('')
@@ -58,18 +64,15 @@ export function KitchenProductPicker({ selected, onSelect }) {
             <li key={p.product_id}>
               <button
                 type="button"
-                disabled={p.is_available === false}
                 onClick={() => {
                   onSelect(p)
                   setTerm('')
                 }}
-                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm hover:bg-gray-50"
               >
                 <span>{p.name}</span>
-                <span
-                  className={`text-xs ${p.is_available === false ? 'text-red-500' : 'text-gray-400'}`}
-                >
-                  {p.available_qty != null ? `${p.available_qty} ${p.uom}` : ''}
+                <span className="text-xs text-gray-400">
+                  {p.available_qty != null ? `${p.available_qty} ${p.uom} on hand` : ''}
                 </span>
               </button>
             </li>
