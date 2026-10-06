@@ -87,6 +87,14 @@ export function KodeAbsensiGate() {
     )
   }
 
+  function handleLoadShifts(e) {
+    e.preventDefault()
+    const typedPin = pin.trim()
+    if (!typedPin) return
+    loadShifts.mutate({ code: code.trim(), pin: typedPin })
+    setPin('') // same rule as the first form: the PIN never outlives the request
+  }
+
   function handleChangeCode() {
     setChecked(null)
     setShiftId(null)
@@ -139,6 +147,28 @@ export function KodeAbsensiGate() {
                   placeholder="e.g. Shift 1"
                 />
               </FormField>
+            )}
+            {!hasShifts && !loadShifts.isPending && (
+              <div className="space-y-1.5 rounded-lg bg-gray-50 p-3">
+                <p className="text-xs text-gray-500">
+                  Want to pick a shift and see its tasks? Enter your PIN Absensi.
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    id="att-pin-inline"
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    value={pin}
+                    onChange={(e) => setPin(e.target.value)}
+                    placeholder="PIN Absensi"
+                    aria-label="PIN Absensi"
+                  />
+                  <Button type="button" onClick={handleLoadShifts} disabled={!pin.trim()}>
+                    Load shifts
+                  </Button>
+                </div>
+              </div>
             )}
             {loadShifts.isPending && <p className="text-xs text-gray-400">Loading your shifts…</p>}
             {loadShifts.isError && (

@@ -101,6 +101,21 @@ describe('KodeAbsensiGate', () => {
       expect(useShiftChecklistStore.getState().shift).toBeNull()
     })
 
+    it('lets you add the PIN on the open step to load shifts, then shows the shift list and its tasks', async () => {
+      const user = userEvent.setup()
+      await reachOpenStep(user, { pin: '' })
+
+      await user.type(await screen.findByLabelText('PIN Absensi'), '482913')
+      await user.click(screen.getByRole('button', { name: /load shifts/i }))
+
+      const select = await screen.findByLabelText('Shift')
+      expect(select.tagName).toBe('SELECT')
+      await user.selectOptions(select, '1')
+      expect(screen.getByText(/your tasks this shift \(pagi\)/i)).toBeInTheDocument()
+      // the inline PIN prompt is gone once shifts are loaded
+      expect(screen.queryByRole('button', { name: /load shifts/i })).not.toBeInTheDocument()
+    })
+
     it('with the PIN, lists the company shifts with their time window', async () => {
       const user = userEvent.setup()
       await reachOpenStep(user)
