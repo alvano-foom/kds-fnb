@@ -13,7 +13,7 @@ import { Spinner } from '../atoms/Spinner'
 
 /**
  * The "lasting" gate between Settings and the working screens: identify
- * yourself with a Kode Absensi, then either open the kitchen (if it isn't
+ * yourself with a Attendance Code, then either open the kitchen (if it isn't
  * already) or continue into an already-open one — one kitchen session
  * covers the whole shift/company, not one per person, so this same flow
  * also serves as "switch operator" when someone else needs to be the one
@@ -35,7 +35,7 @@ export function KodeAbsensiGate() {
   const openSession = useOpenKitchenSession()
 
   // Shifts (and their task lists) come from foom_attendance, whose API needs
-  // the employee's PIN as well as the Kode Absensi. The PIN is optional: with
+  // the employee's PIN as well as the Attendance Code. The PIN is optional: with
   // it we offer a shift picker + task preview; without it (or if loading
   // fails) the form keeps its free-text Shift field and nothing is blocked.
   const loadShifts = useLoadShifts()
@@ -139,19 +139,19 @@ export function KodeAbsensiGate() {
                 </select>
               </FormField>
             ) : (
-              <FormField label="Shift (optional)" htmlFor="shift">
+              <FormField label="Shift" htmlFor="shift">
                 <Input
                   id="shift"
                   value={shift}
                   onChange={(e) => setShift(e.target.value)}
-                  placeholder="e.g. Shift 1"
+                  placeholder="e.g. Morning Shift"
                 />
               </FormField>
             )}
             {!hasShifts && !loadShifts.isPending && (
               <div className="space-y-1.5 rounded-lg bg-gray-50 p-3">
                 <p className="text-xs text-gray-500">
-                  Want to pick a shift and see its tasks? Enter your PIN Absensi.
+                  Want to pick a shift and see its tasks? Enter your Attendance Pin.
                 </p>
                 <div className="flex gap-2">
                   <Input
@@ -161,8 +161,8 @@ export function KodeAbsensiGate() {
                     autoComplete="off"
                     value={pin}
                     onChange={(e) => setPin(e.target.value)}
-                    placeholder="PIN Absensi"
-                    aria-label="PIN Absensi"
+                    placeholder="Attendance Pin"
+                    aria-label="Attendance Pin"
                   />
                   <Button type="button" onClick={handleLoadShifts} disabled={!pin.trim()}>
                     Load shifts
@@ -197,7 +197,7 @@ export function KodeAbsensiGate() {
         )}
 
         <button type="button" onClick={handleChangeCode} className="text-sm font-medium text-gray-400 underline">
-          Not you? Enter a different Kode Absensi
+          Not you? Enter a different Attendance Code
         </button>
       </div>
     )
@@ -205,7 +205,7 @@ export function KodeAbsensiGate() {
 
   return (
     <form onSubmit={handleCheck} className="space-y-4">
-      <FormField label="Kode Absensi" htmlFor="att-code">
+      <FormField label="Attendance Code" htmlFor="att-code">
         <Input
           id="att-code"
           autoFocus
@@ -215,7 +215,7 @@ export function KodeAbsensiGate() {
         />
       </FormField>
 
-      <FormField label="PIN Absensi (optional)" htmlFor="att-pin">
+      <FormField label="Attendance Pin" htmlFor="att-pin">
         <Input
           id="att-pin"
           type="password"
@@ -229,7 +229,7 @@ export function KodeAbsensiGate() {
 
       {whoami.isError && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {whoami.error?.message || 'Kode absensi tidak dikenal.'}
+          {whoami.error?.message || 'Attendance Code is invalid.'}
         </p>
       )}
 
