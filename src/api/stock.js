@@ -11,7 +11,6 @@ export function getStock({ companyId, productIds, warehouseId, kitchenOnly, comp
   if (companyId) params.set('company_id', companyId)
   if (productIds?.length) params.set('product_ids', productIds.join(','))
   if (warehouseId) params.set('warehouse_id', warehouseId)
-  if (kitchenOnly) params.set('kitchen_only', '1')
   if (components) params.set('components', '1')
   return apiFetch(`/stock?${params.toString()}`)
 }

@@ -198,7 +198,7 @@ describe('POST /kitchen/sessions/:id/close', () => {
 
 describe('GET /stock', () => {
   test('filters to kitchen-relevant products and reports availability', async () => {
-    const res = await apiFetch('/stock?company_id=1&kitchen_only=1')
+    const res = await apiFetch('/stock?company_id=1')
     expect(res.products.length).toBeGreaterThan(0)
     const p4 = res.products.find((p) => p.product_id === 'p4')
     expect(p4.is_available).toBe(true)

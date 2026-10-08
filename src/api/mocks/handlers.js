@@ -433,7 +433,6 @@ export const handlers = [
     const companyId = url.searchParams.get('company_id')
     if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
     const productIds = url.searchParams.get('product_ids')?.split(',').filter(Boolean)
-    // kitchen_only=1 is accepted (matching the real contract) but is a
     // no-op here — every seeded mock product is already a kitchen item.
     let products = mockKitchenProducts
     if (productIds?.length) products = products.filter((p) => productIds.includes(p.product_id))
