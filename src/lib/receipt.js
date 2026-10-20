@@ -3,6 +3,8 @@
 // No PDF library needed: window.print() on a purpose-built document does
 // the job a kitchen printer actually needs.
 
+import { ticketLines } from './orderGroups'
+
 function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
@@ -34,8 +36,12 @@ export function printReceipt(card) {
   <h1>${escapeHtml(card.order_name)}</h1>
   <div class="table">TABLE ${escapeHtml(card.table_number ?? '-')}</div>
   <hr />
-  <div class="line"><span class="qty">${escapeHtml(card.qty)}×</span><span>${escapeHtml(card.product_name)}</span></div>
-  ${card.note ? `<div class="meta">Note: ${escapeHtml(card.note)}</div>` : ''}
+  ${ticketLines(card)
+    .map(
+      (l) => `<div class="line"><span class="qty">${escapeHtml(l.qty)}×</span><span>${escapeHtml(l.product_name)}</span></div>
+  ${l.note ? `<div class="meta">Note: ${escapeHtml(l.note)}</div>` : ''}`,
+    )
+    .join('\n  ')}
   <hr />
   <div class="meta">Customer: ${escapeHtml(card.customer_name ?? '-')}</div>
   <div class="meta">Status: ${escapeHtml(card.kitchen_state)}</div>

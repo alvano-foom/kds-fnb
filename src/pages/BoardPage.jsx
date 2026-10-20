@@ -1,3 +1,4 @@
+import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { AppShell } from '../components/templates/AppShell'
 import { KanbanBoard } from '../components/organisms/KanbanBoard'
@@ -10,7 +11,9 @@ import { Spinner } from '../components/atoms/Spinner'
 import { useTenantStore } from '../store/tenantStore'
 import { useTenantConfig } from '../hooks/useTenantConfig'
 import { useOrderLines } from '../hooks/useOrderLines'
-import { useUpdateLineState } from '../hooks/useUpdateLineState'
+import { useUpdateLineState, useUpdateOrderState } from '../hooks/useUpdateLineState'
+import { useOrderViewStore } from '../store/orderViewStore'
+import { groupByOrder, planOrderMove } from '../lib/orderGroups'
 import { useKitchenSocket } from '../ws/useKitchenSocket'
 import { useLogout } from '../hooks/useAuth'
 
@@ -21,6 +24,21 @@ export function BoardPage() {
   const { status } = useKitchenSocket(companyId)
   const lines = useOrderLines(companyId, { polling: status === 'polling' })
   const updateState = useUpdateLineState(companyId)
+  const updateOrder = useUpdateOrderState(companyId)
+  const perTransaction = useOrderViewStore((s) => s.perTransaction)
+  // The query always holds one entry per order line; per-transaction mode only
+  // regroups them for display, so websocket/polling updates keep working as is.
+  const cards = useMemo(() => (perTransaction ? groupByOrder(lines.data ?? []) : lines.data ?? []), [perTransaction, lines.data])
+
+  function handleDrop(cardId, kitchenState) {
+    if (!perTransaction) {
+      updateState.mutate({ lineId: cardId, kitchenState })
+      return
+    }
+    const card = cards.find((c) => c.id === cardId)
+    const moves = card ? planOrderMove(card, kitchenState) : []
+    if (moves.length) updateOrder.mutate({ moves })
+  }
   const logout = useLogout()
 
   return (
@@ -63,10 +81,7 @@ export function BoardPage() {
               lines.data is still undefined) would treat every already-
               pending seed order as "newly" pending the moment data arrives. */}
           <PendingOrderAlerts cards={lines.data ?? []} />
-          <KanbanBoard
-            cards={lines.data ?? []}
-            onDrop={(lineId, kitchenState) => updateState.mutate({ lineId, kitchenState })}
-          />
+          <KanbanBoard cards={cards} onDrop={handleDrop} />
         </>
       )}
     </AppShell>

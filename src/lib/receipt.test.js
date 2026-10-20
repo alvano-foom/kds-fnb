@@ -57,4 +57,25 @@ describe('printReceipt', () => {
     expect(html).not.toContain('<script>alert(1)</script>')
     expect(html).toContain('&lt;script&gt;')
   })
+
+  it('prints every line of a per-transaction order on one ticket', () => {
+    const win = fakeWindow()
+    vi.spyOn(window, 'open').mockReturnValue(win)
+
+    printReceipt({
+      ...card,
+      qty: 4,
+      lines: [
+        { id: 'l1', product_name: 'Chicken Satay', qty: 3, note: 'No peanuts' },
+        { id: 'l2', product_name: 'Rice Cake', qty: 1 },
+      ],
+    })
+    vi.runAllTimers()
+
+    expect(win.document.write).toHaveBeenCalledOnce()
+    const html = win.document.write.mock.calls[0][0]
+    expect(html).toContain('Chicken Satay')
+    expect(html).toContain('Rice Cake')
+    expect(html).toContain('Note: No peanuts')
+  })
 })

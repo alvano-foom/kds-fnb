@@ -8,6 +8,7 @@ import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
 import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
 import { usePrinterStore } from '../store/printerStore'
 import { useErrorLogStore } from '../store/errorLogStore'
+import { useOrderViewStore } from '../store/orderViewStore'
 import { useKitchenSessionStore } from '../store/kitchenSessionStore'
 import { useShiftChecklistStore } from '../store/shiftChecklistStore'
 import { resetKitchenMockData } from '../api/mocks/fixtures'
@@ -39,6 +40,7 @@ afterEach(() => {
   cleanup()
   localStorage.clear()
   useShiftChecklistStore.setState({ sessionId: null, done: [] })
+  useOrderViewStore.setState({ perTransaction: false })
   useAuthStore.setState({ accessToken: null, refreshToken: null, user: null })
   useTenantStore.setState({ companyId: null, companyName: null })
   useThemeStore.setState(DEFAULT_THEME)

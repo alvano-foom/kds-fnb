@@ -72,7 +72,7 @@ export function KitchenProductPicker({ selected, onSelect }) {
               >
                 <span>{p.name}</span>
                 <span className="text-xs text-gray-400">
-                  {p.available_qty != null ? `${p.available_qty} ${p.uom} on hand` : ''}
+                  {p.on_hand != null ? `${p.on_hand} ${p.uom} on hand` : 'CONSUMABLE'}
                 </span>
               </button>
             </li>

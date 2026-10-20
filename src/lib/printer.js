@@ -29,6 +29,9 @@
 //    UUID won't be found until that UUID is added to this list — if
 //    pairing succeeds but printing doesn't, that's the next thing to
 //    check (the printer vendor's SDK/app usually documents it).
+
+import { ticketLines } from './orderGroups'
+
 export const KNOWN_PRINTER_SERVICES = [
   { label: 'Generic printer service (18F0)', service: '000018f0-0000-1000-8000-00805f9b34fb' },
   { label: 'BLE-serial module (FFE0, "HM-10 style")', service: '0000ffe0-0000-1000-8000-00805f9b34fb' },
@@ -134,8 +137,10 @@ export function buildEscPosReceipt(card) {
   line(`TABLE ${card.table_number ?? '-'}`)
   line('--------------------------------')
   push(ESC, 0x61, 0x00) // left align
-  line(`${card.qty}x ${card.product_name}`)
-  if (card.note) line(`  Note: ${card.note}`)
+  for (const item of ticketLines(card)) {
+    line(`${item.qty}x ${item.product_name}`)
+    if (item.note) line(`  Note: ${item.note}`)
+  }
   line('--------------------------------')
   line(`Customer: ${card.customer_name ?? '-'}`)
   line(`Printed: ${new Date().toLocaleString()}`)
@@ -203,8 +208,10 @@ export function isTestPrinterCharacteristic(characteristic) {
 /** Same layout as buildEscPosReceipt, as plain readable lines instead of ESC/POS bytes — what the test printer "prints" to its on-screen log. */
 export function formatReceiptPreview(card) {
   const lines = [card.order_name || '', `TABLE ${card.table_number ?? '-'}`, '--------------------------------']
-  lines.push(`${card.qty}x ${card.product_name}`)
-  if (card.note) lines.push(`  Note: ${card.note}`)
+  for (const item of ticketLines(card)) {
+    lines.push(`${item.qty}x ${item.product_name}`)
+    if (item.note) lines.push(`  Note: ${item.note}`)
+  }
   lines.push('--------------------------------', `Customer: ${card.customer_name ?? '-'}`, `Printed: ${new Date().toLocaleString()}`)
   return lines.join('\n')
 }

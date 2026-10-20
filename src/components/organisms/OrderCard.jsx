@@ -2,6 +2,8 @@ import { memo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { OrderMeta } from '../molecules/OrderMeta'
 import { Badge } from '../atoms/Badge'
+import { isOrderCard } from '../../lib/orderGroups'
+import { KITCHEN_STATE_LABELS } from '../../types'
 import { printCard } from '../../lib/printCard'
 import { usePrinterStore, useActivePrinter } from '../../store/printerStore'
 
@@ -20,10 +22,25 @@ function CardContents({ card }) {
         <span className="text-sm font-semibold text-gray-900">{card.order_name}</span>
         {card.table_number && <Badge tone="accent">Table {card.table_number}</Badge>}
       </div>
-      <p className="mb-2 text-sm text-gray-700">
-        {card.qty}× {card.product_name}
-        {card.note && <span className="block text-xs text-gray-400">{card.note}</span>}
-      </p>
+      {isOrderCard(card) ? (
+        <ul className="mb-2 space-y-1 text-sm text-gray-700">
+          {card.lines.map((line) => (
+            <li key={line.id}>
+              {line.qty}× {line.product_name}
+              {/* a line that is further along (or, rarely, behind) the card's column gets its own state tag */}
+              {line.kitchen_state !== card.kitchen_state && (
+                <span className="ml-1.5 text-xs text-gray-400">· {KITCHEN_STATE_LABELS[line.kitchen_state]}</span>
+              )}
+              {line.note && <span className="block text-xs text-gray-400">{line.note}</span>}
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mb-2 text-sm text-gray-700">
+          {card.qty}× {card.product_name}
+          {card.note && <span className="block text-xs text-gray-400">{card.note}</span>}
+        </p>
+      )}
       <OrderMeta customerName={card.customer_name} createdAt={card.created_at} />
     </>
   )
@@ -46,7 +63,8 @@ export function OrderCardOverlay({ card }) {
 }
 
 // One card = one order line (kitchen_state lives on the line, not the
-// order), tagged with the table number from the parent order's
+// order) — or, in per-transaction mode (Settings → Board & Tickets), one
+// whole order with its lines listed — tagged with the table number from the parent order's
 // client_order_ref so kitchen staff know where it goes.
 function OrderCardImpl({ card }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id })
@@ -106,5 +124,9 @@ function OrderCardImpl({ card }) {
 // card in the same column (or another column) does.
 export const OrderCard = memo(
   OrderCardImpl,
-  (prev, next) => prev.card.id === next.card.id && prev.card.updated_at === next.card.updated_at,
+  (prev, next) =>
+    prev.card.id === next.card.id &&
+    prev.card.updated_at === next.card.updated_at &&
+    prev.card.kitchen_state === next.card.kitchen_state &&
+    (prev.card.lines?.length ?? 0) === (next.card.lines?.length ?? 0),
 )

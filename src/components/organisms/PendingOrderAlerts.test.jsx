@@ -1,8 +1,9 @@
-import { render, screen } from '@testing-library/react'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PendingOrderAlerts } from './PendingOrderAlerts'
 import { useTtsStore } from '../../store/ttsStore'
 import { usePrinterStore } from '../../store/printerStore'
+import { useOrderViewStore } from '../../store/orderViewStore'
 import { printCard } from '../../lib/printCard'
 
 vi.mock('../../lib/printCard', () => ({ printCard: vi.fn() }))
@@ -88,5 +89,67 @@ describe('PendingOrderAlerts', () => {
       characteristic: {},
       activePrinter: null,
     })
+  })
+})
+
+describe('PendingOrderAlerts — one per transaction', () => {
+  const line = (id, orderId, extra = {}) => ({
+    ...baseCard,
+    id,
+    order_id: orderId,
+    order_name: `SO${orderId}`,
+    kitchen_state: 'pending',
+    ...extra,
+  })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    window.speechSynthesis.speak = vi.fn()
+    printCard.mockClear()
+    useOrderViewStore.setState({ perTransaction: true })
+    usePrinterStore.setState({ autoPrint: true })
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('raises one alert and prints one ticket for an order whose lines arrive a moment apart', () => {
+    const { rerender } = render(<PendingOrderAlerts cards={[]} />)
+    rerender(<PendingOrderAlerts cards={[line('a1', 'A', { product_name: 'Fried Rice', qty: 2 })]} />)
+    act(() => vi.advanceTimersByTime(300))
+    rerender(
+      <PendingOrderAlerts
+        cards={[line('a1', 'A', { product_name: 'Fried Rice', qty: 2 }), line('a2', 'A', { product_name: 'Iced Tea', qty: 1 })]}
+      />,
+    )
+    // nothing yet — still waiting to see if more lines of the order arrive
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+    expect(printCard).not.toHaveBeenCalled()
+
+    act(() => vi.advanceTimersByTime(1100))
+
+    expect(screen.getAllByRole('status')).toHaveLength(1)
+    expect(screen.getByRole('status')).toHaveTextContent('2 Fried Rice, 1 Iced Tea for table 2')
+    expect(printCard).toHaveBeenCalledTimes(1)
+    const [ticket] = printCard.mock.calls[0]
+    expect(ticket.order_name).toBe('SOA')
+    expect(ticket.lines.map((l) => l.product_name)).toEqual(['Fried Rice', 'Iced Tea'])
+  })
+
+  it('still gives separate orders separate alerts and tickets', () => {
+    const { rerender } = render(<PendingOrderAlerts cards={[]} />)
+    rerender(<PendingOrderAlerts cards={[line('a1', 'A'), line('b1', 'B')]} />)
+    act(() => vi.advanceTimersByTime(1100))
+
+    expect(screen.getAllByRole('status')).toHaveLength(2)
+    expect(printCard).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not batch in the default per-line mode — each line alerts and prints on its own, right away', () => {
+    useOrderViewStore.setState({ perTransaction: false })
+    const { rerender } = render(<PendingOrderAlerts cards={[]} />)
+    rerender(<PendingOrderAlerts cards={[line('a1', 'A'), line('a2', 'A')]} />)
+
+    expect(screen.getAllByRole('status')).toHaveLength(2)
+    expect(printCard).toHaveBeenCalledTimes(2)
   })
 })

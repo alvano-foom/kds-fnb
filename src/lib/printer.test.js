@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { buildEscPosReceipt, isBluetoothSupported, pairPrinter, printViaBluetooth, writeBytes } from './printer'
+import { buildEscPosReceipt, formatReceiptPreview, isBluetoothSupported, pairPrinter, printViaBluetooth, writeBytes } from './printer'
 
 const card = {
   order_name: 'SO0229',
@@ -141,5 +141,32 @@ describe('pairPrinter', () => {
     navigator.bluetooth = { requestDevice: vi.fn().mockRejectedValue(cancelled) }
 
     await expect(pairPrinter()).rejects.toBe(cancelled)
+  })
+})
+
+describe('per-transaction tickets (a card with `lines`)', () => {
+  const order = {
+    order_name: 'SO0229',
+    table_number: '12',
+    customer_name: 'Claire',
+    qty: 4,
+    lines: [
+      { id: 'l1', product_name: 'Chicken Satay', qty: 3, note: 'No peanuts' },
+      { id: 'l2', product_name: 'Rice Cake', qty: 1 },
+    ],
+  }
+
+  it('prints every line of the order on one ESC/POS ticket', () => {
+    const text = textFromBytes(buildEscPosReceipt(order))
+    expect(text).toContain('3x Chicken Satay')
+    expect(text).toContain('Note: No peanuts')
+    expect(text).toContain('1x Rice Cake')
+    expect(text.match(/SO0229/g)).toHaveLength(1)
+  })
+
+  it('lists every line in the test-printer preview too', () => {
+    const preview = formatReceiptPreview(order)
+    expect(preview).toContain('3x Chicken Satay')
+    expect(preview).toContain('1x Rice Cake')
   })
 })

@@ -73,3 +73,40 @@ describe('OrderCard', () => {
     })
   })
 })
+
+describe('OrderCard — a whole transaction', () => {
+  const now = new Date().toISOString()
+  const order = {
+    id: 'order:o1',
+    order_id: 'o1',
+    order_name: 'SO0231',
+    table_number: '7',
+    customer_name: 'Alex',
+    qty: 3,
+    kitchen_state: 'cooking',
+    created_at: now,
+    updated_at: now,
+    lines: [
+      { id: 'l1', order_id: 'o1', product_name: 'Fried Rice', qty: 2, kitchen_state: 'cooking', note: 'Extra spicy' },
+      { id: 'l2', order_id: 'o1', product_name: 'Iced Tea', qty: 1, kitchen_state: 'ready' },
+    ],
+  }
+
+  it('lists every line once, with a state tag only on lines that are in a different state than the card', () => {
+    render(<OrderCard card={order} />)
+
+    expect(screen.getAllByText('SO0231')).toHaveLength(1)
+    expect(screen.getByText(/2× Fried Rice/)).toBeInTheDocument()
+    expect(screen.getByText('Extra spicy')).toBeInTheDocument()
+    expect(screen.getByText(/1× Iced Tea/)).toBeInTheDocument()
+    expect(screen.getByText(/· Ready/)).toBeInTheDocument()
+    expect(screen.queryByText(/· Cooking/)).not.toBeInTheDocument()
+  })
+
+  it('prints the whole order as one ticket', async () => {
+    const user = userEvent.setup()
+    render(<OrderCard card={order} />)
+    await user.click(screen.getByRole('button', { name: /^print$/i }))
+    expect(printCard).toHaveBeenCalledWith(order, expect.anything())
+  })
+})

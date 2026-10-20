@@ -39,3 +39,18 @@ describe('KanbanBoard', () => {
     expect(screen.getByText(/Iced Tea/)).toBeInTheDocument()
   })
 })
+
+describe('KanbanBoard — per-transaction cards', () => {
+  it('shows one card per order (in the order’s earliest column) and drops resolve on that card', async () => {
+    const { groupByOrder } = await import('../../lib/orderGroups')
+    const orders = groupByOrder(cards)
+
+    render(<KanbanBoard cards={orders} onDrop={vi.fn()} />)
+    expect(screen.getAllByText('SO01')).toHaveLength(1) // not one per line any more
+    expect(screen.getByText(/2× Fried Rice/)).toBeInTheDocument()
+    expect(screen.getByText(/2× Iced Tea/)).toBeInTheDocument()
+
+    expect(resolveDrop(orders, 'order:o1', 'cooking')).toEqual({ lineId: 'order:o1', kitchenState: 'cooking' })
+    expect(resolveDrop(orders, 'order:o1', 'pending')).toBeNull() // the order is in Pending already
+  })
+})
