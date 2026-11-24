@@ -31,7 +31,7 @@ describe('KodeAbsensiGate', () => {
   beforeEach(async () => {
     const data = await login('staff@kawahputih.test', 'password123')
     useAuthStore.getState().setTokens(data)
-    useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
+    useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
   })
 
   it('rejects an unknown Kode Absensi', async () => {
@@ -55,11 +55,11 @@ describe('KodeAbsensiGate', () => {
     const state = useKitchenSessionStore.getState()
     expect(state.session.state).toBe('open')
     expect(state.employee.code).toBe('F102345')
-    expect(state.companyId).toBe('c1')
+    expect(state.companyId).toBe('1')
   })
 
   it('offers to continue an already-open session instead of erroring', async () => {
-    const opened = await openKitchenSession({ companyId: 'c1', employeeCode: 'F100120', shift: 'Shift 1' })
+    const opened = await openKitchenSession({ companyId: '1', employeeCode: 'F100120', shift: 'Shift 1' })
 
     const user = userEvent.setup()
     renderGate()
@@ -183,7 +183,7 @@ describe('KodeAbsensiGate', () => {
     })
 
     it('joining a kitchen someone else opened remembers the matching shift when a PIN was given', async () => {
-      const opened = await openKitchenSession({ companyId: 'c1', employeeCode: 'F100120', shift: 'Malam' })
+      const opened = await openKitchenSession({ companyId: '1', employeeCode: 'F100120', shift: 'Malam' })
       const user = userEvent.setup()
       await reachOpenStep(user)
 

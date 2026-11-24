@@ -32,11 +32,11 @@ import { normalizeAttendanceShift } from '@/lib/shifts'
 async function startSession({ shiftId } = {}) {
   const raw = mockShifts.find((s) => s.id === shiftId)
   const shift = raw ? normalizeAttendanceShift(raw) : null
-  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: shift?.name ?? 'Shift 1' })
+  const session = await openKitchenSession({ companyId: '1', employeeCode: 'F102345', shift: shift?.name ?? 'Shift 1' })
   useKitchenSessionStore.getState().setSession({
     session,
     employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
-    companyId: 'c1',
+    companyId: '1',
   })
   if (shift) useShiftChecklistStore.getState().setShift(session.id, shift)
   return session
@@ -46,7 +46,7 @@ describe('ShiftChecklistLink', () => {
   beforeEach(async () => {
     const data = await login('staff@kawahputih.test', 'password123')
     useAuthStore.getState().setTokens(data)
-    useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
+    useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
   })
 
   it('shows done/total and opens the checklist page', async () => {

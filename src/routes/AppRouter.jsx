@@ -2,7 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom
 import { LoginPage } from '@/pages/LoginPage'
 import { useIsAuthenticated } from '@/hooks/useAuth'
 import { ConfigPage } from '@/pages/ConfigPage'
-import { useTenantStore } from '@/store/tenantStore'
+import { useIsTenantConfigured } from '@/store/tenantStore'
 import { KitchenSessionPage } from '@/pages/KitchenSessionPage'
 import { ProductionPage } from '@/pages/ProductionPage'
 import { useIsKitchenSessionOpen } from '@/store/kitchenSessionStore'
@@ -14,9 +14,8 @@ function RequireAuth() {
   return useIsAuthenticated() ? <Outlet /> : <Navigate to="/login" replace />
 }
 
-function RequireCompany() {
-  const hasCompany = useTenantStore((s) => Boolean(s.companyId))
-  return hasCompany ? <Outlet /> : <Navigate to="/config" replace />
+function RequireTenantConfig() {
+  return useIsTenantConfigured() ? <Outlet /> : <Navigate to="/config" replace />
 }
 
 function RequireKitchenSession() {
@@ -31,7 +30,7 @@ export function AppRouter() {
         <Route element={<RequireAuth />}>
           <Route path="/config" element={<ConfigPage />} />
           <Route path="/errors" element={<ErrorLogPage />} />
-          <Route element={<RequireCompany />}>
+          <Route element={<RequireTenantConfig />}>
             <Route path="/kitchen-session" element={<KitchenSessionPage />} />
             <Route element={<RequireKitchenSession />}>
               <Route path="/production" element={<ProductionPage />} />

@@ -40,7 +40,7 @@ afterEach(() => {
   useShiftChecklistStore.setState({ sessionId: null, done: [] })
   useOrderViewStore.setState({ perTransaction: false })
   useAuthStore.setState({ accessToken: null, refreshToken: null, user: null })
-  useTenantStore.setState({ companyId: null, companyName: null })
+  useTenantStore.getState().clearConfig()
   useThemeStore.setState(DEFAULT_THEME)
   useTtsStore.setState(DEFAULT_TTS)
   usePrinterStore.setState({
