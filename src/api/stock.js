@@ -9,3 +9,15 @@ export function getStock({ companyId, productIds, warehouseId, components } = {}
   if (components) params.set('components', '1')
   return apiFetch(`/stock?${params.toString()}`)
 }
+
+/**
+ * Read-only: can this basket be made from current stock? Reserves nothing.
+ * @param {{companyId: string, warehouseId?: string, lines: ({barcode: string}|{product_id: string}) & {qty: number}[]}} basket
+ * @returns {Promise<import('@/lib/stockCheck').StockCheckResult>}
+ */
+export function checkStock({ companyId, warehouseId, lines }) {
+  return apiFetch('/stock/check', {
+    method: 'POST',
+    body: JSON.stringify({ company_id: companyId, warehouse_id: warehouseId || undefined, lines }),
+  })
+}

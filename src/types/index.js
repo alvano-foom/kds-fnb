@@ -26,6 +26,8 @@
  * @property {string} [table_number] // sale.order.client_order_ref
  * @property {string} [customer_name]
  * @property {string} product_name
+ * @property {string} [product_id]   // used for /stock/check when barcode is missing
+ * @property {string} [barcode]      // product barcode, sent to /stock/check
  * @property {number} qty
  * @property {string} [note]
  * @property {KitchenState} kitchen_state
