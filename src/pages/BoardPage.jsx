@@ -8,6 +8,7 @@ import { KitchenSessionBadge } from '@/components/organisms/KitchenSessionBadge'
 import { ShiftChecklistLink } from '@/components/organisms/ShiftChecklistLink'
 import { KanbanBoard } from '@/components/organisms/KanbanBoard'
 import { PendingOrderAlerts } from '@/components/organisms/PendingOrderAlerts'
+import { OrderStockAlerts } from '@/components/organisms/OrderStockAlerts'
 import { ConnectionStatus } from '@/components/molecules/ConnectionStatus'
 import { useOrderLines } from '@/hooks/useOrderLines'
 import { useUpdateLineState, useUpdateOrderState } from '@/hooks/useUpdateLineState'
@@ -72,7 +73,12 @@ export function BoardPage() {
         <>
           {/* Mount only after data loads so its first render is the baseline, not "every order is new". */}
           <PendingOrderAlerts cards={lines.data ?? []} />
-          <KanbanBoard cards={cards} onDrop={handleDrop} />
+          <div className="flex h-full flex-col">
+            <OrderStockAlerts companyId={companyId} cards={lines.data ?? []} />
+            <div className="min-h-0 flex-1">
+              <KanbanBoard cards={cards} onDrop={handleDrop} />
+            </div>
+          </div>
         </>
       )}
     </TenantShell>
