@@ -6,12 +6,12 @@ import { useAuthStore } from '@/store/authStore'
 import { mockOrders, toOrderLineCard } from '@/mocks/fixtures'
 import { OrderStockAlerts } from './OrderStockAlerts'
 
-const allCards = mockOrders.filter((o) => o.company_id === 'c1').flatMap((o) => o.lines.map((l) => toOrderLineCard(o, l)))
+const allCards = mockOrders.flatMap((o) => o.lines.map((l) => toOrderLineCard(o, l)))
 
 function renderAlerts(cards) {
   return render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <OrderStockAlerts companyId="c1" cards={cards} />
+      <OrderStockAlerts companyId="1" cards={cards} />
     </QueryClientProvider>,
   )
 }

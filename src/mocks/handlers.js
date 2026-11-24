@@ -421,21 +421,6 @@ export const handlers = [
     )
   }),
 
-  http.get('/api/stock', ({ request }) => {
-    const url = new URL(request.url)
-    const companyId = url.searchParams.get('company_id')
-    if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
-    const productIds = url.searchParams.get('product_ids')?.split(',').filter(Boolean)
-    // no-op here — every seeded mock product is already a kitchen item.
-    let products = mockKitchenProducts
-    if (productIds?.length) products = products.filter((p) => productIds.includes(p.product_id))
-    return HttpResponse.json({
-      company_id: companyId,
-      warehouse_id: 'w1',
-      warehouse_name: 'Main Warehouse',
-      products,
-    })
-  }),
   http.post('/api/stock/check', async ({ request }) => {
     if (!requireAuth(request)) return errorResponse(401, 'unauthorized', 'Missing or expired token')
     const body = await request.json().catch(() => null)
@@ -455,6 +440,21 @@ export const handlers = [
     })
   }),
 
+  http.get('/api/stock', ({ request }) => {
+    const url = new URL(request.url)
+    const companyId = url.searchParams.get('company_id')
+    if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
+    const productIds = url.searchParams.get('product_ids')?.split(',').filter(Boolean)
+    // no-op here — every seeded mock product is already a kitchen item.
+    let products = mockKitchenProducts
+    if (productIds?.length) products = products.filter((p) => productIds.includes(p.product_id))
+    return HttpResponse.json({
+      company_id: companyId,
+      warehouse_id: 'w1',
+      warehouse_name: 'Main Warehouse',
+      products,
+    })
+  }),
   // --- foom_attendance public API: {ok, error, message} JSON ---
 
   http.post('/foom/attendance/api/login', async ({ request }) => {
