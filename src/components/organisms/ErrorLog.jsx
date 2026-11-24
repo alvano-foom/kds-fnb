@@ -1,24 +1,12 @@
 import { useEffect } from 'react'
-import { Badge } from '../atoms/Badge'
-import { useErrorLogStore } from '../../store/errorLogStore'
+import { Badge } from '@/components/atoms/Badge'
+import { useErrorLogStore } from '@/store/errorLogStore'
 
 const CATEGORY_LABELS = {
   printer: 'Printer',
 }
 
-/**
- * History of things that went wrong — right now that's printer errors: a
- * failed pairing, an unexpected disconnect, or a Bluetooth write that
- * failed and silently fell back to the print dialog (the case that would
- * otherwise leave no trace at all — see printCard.js). Persisted to
- * localStorage (errorLogStore.js) so it's still here after a reload, for
- * "why didn't that ticket print an hour ago" style troubleshooting.
- *
- * Entries older than today are dropped on app start and on every new log
- * (see errorLogStore.js) — the extra prune on mount here covers a KDS
- * tablet that's had this page open since before midnight, so opening it
- * fresh the next day never shows stale entries either.
- */
+/** Today's background errors (mostly printing). Prunes on mount in case the page stayed open past midnight. */
 export function ErrorLog() {
   const { entries, clear } = useErrorLogStore()
 

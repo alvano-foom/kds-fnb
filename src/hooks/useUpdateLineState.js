@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { updateLineState } from '../api/orders'
+import { updateLineState } from '@/api/orders'
 import { orderLinesQueryKey } from './useOrderLines'
 
 /** Optimistic drag-and-drop: move the card immediately, roll back on error. */
@@ -27,11 +27,8 @@ export function useUpdateLineState(companyId) {
 }
 
 /**
- * Per-transaction board: dropping an order's card moves several lines at
- * once. `moves` comes from planOrderMove() — each line with the states to
- * step it through. Same optimistic move / roll back / refetch as above; if
- * any one line is refused, the whole drop is rolled back and the refetch
- * shows what the server really has.
+ * Per-transaction drop: steps several lines through `moves` (from planOrderMove()).
+ * If any line is refused, the whole drop rolls back and the refetch shows the server state.
  */
 export function useUpdateOrderState(companyId) {
   const queryClient = useQueryClient()

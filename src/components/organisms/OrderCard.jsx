@@ -1,11 +1,11 @@
 import { memo } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { OrderMeta } from '../molecules/OrderMeta'
-import { Badge } from '../atoms/Badge'
-import { isOrderCard } from '../../lib/orderGroups'
-import { KITCHEN_STATE_LABELS } from '../../types'
-import { printCard } from '../../lib/printCard'
-import { usePrinterStore, useActivePrinter } from '../../store/printerStore'
+import { OrderMeta } from '@/components/molecules/OrderMeta'
+import { Badge } from '@/components/atoms/Badge'
+import { isOrderCard } from '@/lib/orderGroups'
+import { KITCHEN_STATE_LABELS } from '@/types'
+import { printCard } from '@/lib/printCard'
+import { usePrinterStore, useActivePrinter } from '@/store/printerStore'
 
 const PrinterIcon = (props) => (
   <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5" {...props}>
@@ -13,8 +13,7 @@ const PrinterIcon = (props) => (
   </svg>
 )
 
-// Shared between the in-place card and its DragOverlay clone so the two
-// never drift apart visually.
+// Shared by the in-place card and its DragOverlay clone so they never drift apart.
 function CardContents({ card }) {
   return (
     <>
@@ -46,11 +45,7 @@ function CardContents({ card }) {
   )
 }
 
-// Rendered inside <DragOverlay> (see KanbanBoard) — a plain visual clone
-// with no drag listeners of its own; dnd-kit portals it to <body> and
-// positions it under the pointer. Because it's outside every column, it's
-// never clipped by a column's overflow-y-auto the way the in-place card
-// would be if it tried to translate itself across column boundaries.
+// DragOverlay clone: portaled to <body> so no column's overflow-y-auto clips it.
 export function OrderCardOverlay({ card }) {
   return (
     <div
@@ -62,10 +57,7 @@ export function OrderCardOverlay({ card }) {
   )
 }
 
-// One card = one order line (kitchen_state lives on the line, not the
-// order) — or, in per-transaction mode (Settings → Board & Tickets), one
-// whole order with its lines listed — tagged with the table number from the parent order's
-// client_order_ref so kitchen staff know where it goes.
+// One order line, or one whole order in per-transaction mode; tagged with the table (client_order_ref).
 function OrderCardImpl({ card }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: card.id })
   const printerStatus = usePrinterStore((s) => s.status)
@@ -82,10 +74,7 @@ function OrderCardImpl({ card }) {
     })
   }
 
-  // While dragging, this element stays put as a dashed placeholder marking
-  // the origin slot — the actual moving card is the DragOverlay clone
-  // above, which can float over every column instead of being clipped by
-  // whichever one it started in.
+  // While dragging, this stays as a dashed placeholder; the DragOverlay clone is what moves.
   return (
     <div
       ref={setNodeRef}
@@ -103,9 +92,7 @@ function OrderCardImpl({ card }) {
         <CardContents card={card} />
         <button
           type="button"
-          // Stop the pointer event before it reaches this card's own
-          // dnd-kit listeners (spread on the parent div above) — without
-          // this, pressing the button starts a drag instead of a click.
+          // Keep the press from reaching dnd-kit's listeners, or it starts a drag instead of a click.
           onPointerDown={(e) => e.stopPropagation()}
           onClick={(e) => {
             e.stopPropagation()
@@ -120,8 +107,7 @@ function OrderCardImpl({ card }) {
   )
 }
 
-// Re-render this card only if its own data changed, not when a sibling
-// card in the same column (or another column) does.
+// Re-render only when this card's own data changes.
 export const OrderCard = memo(
   OrderCardImpl,
   (prev, next) =>

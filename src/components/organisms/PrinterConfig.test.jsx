@@ -2,16 +2,16 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { PrinterConfig } from './PrinterConfig'
-import { usePrinterStore } from '../../store/printerStore'
-import * as printer from '../../lib/printer'
-import * as networkPrinter from '../../lib/networkPrinter'
+import { usePrinterStore } from '@/store/printerStore'
+import * as printer from '@/lib/printer'
+import * as networkPrinter from '@/lib/networkPrinter'
 
-vi.mock('../../lib/printer', async () => {
-  const actual = await vi.importActual('../../lib/printer')
+vi.mock('@/lib/printer', async () => {
+  const actual = await vi.importActual('@/lib/printer')
   return { ...actual, pairPrinter: vi.fn(), printTestTicket: vi.fn() }
 })
-vi.mock('../../lib/networkPrinter', async () => {
-  const actual = await vi.importActual('../../lib/networkPrinter')
+vi.mock('@/lib/networkPrinter', async () => {
+  const actual = await vi.importActual('@/lib/networkPrinter')
   return {
     ...actual,
     checkNetworkBridge: vi.fn(),

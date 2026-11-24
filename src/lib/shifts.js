@@ -22,11 +22,7 @@ function toMinutes(hhmm) {
   return h * 60 + (m || 0)
 }
 
-/**
- * Maps one shift from foom_attendance's POST /shifts (integer ids,
- * time_from / time_to, is_overnight) to the app's internal shape. Tasks are
- * sorted by `sequence` (the API already does, this just makes it a guarantee).
- */
+/** Maps a foom_attendance shift to the app shape; tasks sorted by `sequence`. */
 export function normalizeAttendanceShift(raw) {
   return {
     id: String(raw.id),
@@ -49,11 +45,7 @@ export function formatShiftWindow(shift) {
 }
 
 /**
- * The shift whose window contains `now` — used to pre-select the right
- * shift when someone opens the kitchen, so the common case is zero taps.
- * Handles overnight shifts (Lintas Hari): a 22:00–06:00 shift matches at
- * 23:30 and at 02:00. Returns the first match if windows overlap, or null
- * if none do (callers then just leave the selection empty).
+ * The shift whose window contains `now`, including overnight shifts; first match wins.
  * @param {Shift[]} shifts
  * @param {Date} [now]
  * @returns {Shift | null}

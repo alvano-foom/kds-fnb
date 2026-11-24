@@ -9,7 +9,7 @@ import {
   createProductionScraps,
   listProductionScraps,
 } from './kitchen'
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '@/store/authStore'
 
 async function setUp() {
   useAuthStore.getState().setTokens(await login('staff@kawahputih.test', 'password123'))

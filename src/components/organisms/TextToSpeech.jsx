@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useTtsStore } from '../../store/ttsStore'
-import { Button } from '../atoms/Button'
+import { useTtsStore } from '@/store/ttsStore'
+import { Button } from '@/components/atoms/Button'
 import {
   formatAnnouncement,
   getVoices,
@@ -9,22 +9,12 @@ import {
   pickIndonesianVoiceURI,
   speakText,
   stopSpeaking,
-} from '../../lib/speech'
+} from '@/lib/speech'
 
-// Sample card used only to preview the template below — real announcements
-// substitute the actual order's data (see PendingOrderAlerts.jsx).
+// Sample card for previewing the template.
 const PREVIEW_CARD = { qty: 1, product_name: 'Iced Lemon Tea', table_number: '12' }
 
-/**
- * Configures the announcement TEMPLATE and voice used for every new-order
- * announcement (see PendingOrderAlerts.jsx) — built on the browser's native
- * SpeechSynthesis API, no library needed. Text and the chosen voice are
- * frontend-only settings persisted to localStorage (see store/ttsStore.js),
- * the same pattern as the theme colors. Defaults to Indonesian
- * pronunciation (see src/lib/speech.js) and auto-picks an Indonesian voice
- * the first time the browser's voice list loads, if one is available and
- * the person hasn't already chosen a voice of their own.
- */
+/** Announcement template + voice settings; auto-picks an Indonesian voice on first load if none is chosen. */
 export function TextToSpeech() {
   const { text, voiceURI, setText, setVoiceURI } = useTtsStore()
   const [voices, setVoices] = useState(() => getVoices())
@@ -33,8 +23,7 @@ export function TextToSpeech() {
 
   useEffect(() => {
     if (!isSpeechSupported()) return undefined
-    // Chrome loads voices asynchronously — the list is often empty on the
-    // very first call, so refresh it once the browser reports it's ready.
+    // Chrome loads voices asynchronously; the first list is often empty.
     const loadVoices = () => setVoices(getVoices())
     window.speechSynthesis.addEventListener('voiceschanged', loadVoices)
     loadVoices()
@@ -53,12 +42,7 @@ export function TextToSpeech() {
   const hasIndonesianVoice = indonesianVoices.length > 0
   const accentMismatch = isSpeechSupported() && (selectedVoice ? !isIndonesianVoice(selectedVoice) : !hasIndonesianVoice)
 
-  // Only Indonesian voices are worth showing — anything else can't sound
-  // Indonesian regardless of this setting (see the note below the select).
-  // The one exception: if a non-Indonesian voice is already selected (e.g.
-  // a leftover choice from before Indonesian voices were installed), it
-  // stays listed too, so switching to this filtered list never silently
-  // hides the person's current selection out from under them.
+  // Only Indonesian voices can sound Indonesian; keep a current non-Indonesian pick listed so it is not hidden.
   const listedVoices =
     selectedVoice && !isIndonesianVoice(selectedVoice) ? [selectedVoice, ...indonesianVoices] : indonesianVoices
 
@@ -69,9 +53,7 @@ export function TextToSpeech() {
   }
 
   function speak() {
-    // Speak the filled-in preview, not the raw template — otherwise a
-    // "{qty} {product_name}..." template would be read out literally,
-    // placeholders and all.
+    // Speak the filled-in preview, not the raw "{qty} {product_name}" template.
     const utterance = speakText(preview, { voiceURI, interrupt: true })
     if (!utterance) return
     setSpeaking(true)

@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
 
-/** Shown in the header on Board/Production — who's attributed to actions right now, and an escape hatch to switch. */
+/** Who is attributed to kitchen actions right now, with a way to switch operator. */
 export function KitchenSessionBadge() {
   const navigate = useNavigate()
   const session = useKitchenSessionStore((s) => s.session)

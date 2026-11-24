@@ -1,7 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { AuthLayout } from '../components/templates/AuthLayout'
-import { LoginForm } from '../components/organisms/LoginForm'
-import { useTenantConfig } from '../hooks/useTenantConfig'
+import { AuthLayout } from '@/components/templates/AuthLayout'
+import { LoginForm } from '@/components/organisms/LoginForm'
+import { useTenantConfig } from '@/hooks/useTenantConfig'
 
 export function LoginPage() {
   const navigate = useNavigate()

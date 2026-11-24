@@ -1,10 +1,4 @@
-/**
- * The reminder list for one shift (Odoo's shift tasks), ordered by
- * `sequence`. With `onToggle` it's a tickable checklist; without, a plain
- * read-only preview (used on the "Open Kitchen" screen right after picking
- * a shift). Ticks are a memory aid only — nothing here is validated or
- * sent anywhere.
- */
+/** Shift tasks; tickable with `onToggle`, read-only preview without. */
 export function ShiftTaskList({ tasks, doneIds = [], onToggle }) {
   const ordered = [...tasks].sort((a, b) => (a.sequence ?? 0) - (b.sequence ?? 0))
 

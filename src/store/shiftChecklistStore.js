@@ -2,15 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * The shift this kitchen session was opened with (a snapshot of what the
- * attendance API returned — name, window, tasks) and which of its reminder
- * tasks the operator has ticked off. Purely a reminder: never sent to the
- * backend, kept here (persisted, so a tablet reload mid-shift doesn't wipe
- * it) and scoped by kitchen session id — the next session starts clean.
- *
- * The snapshot exists because the shift list needs the employee's PIN to
- * fetch (see api/attendance.js); the checklist page can't re-fetch it on
- * every visit, so the gate stores the shift the operator picked.
+ * Snapshot of the session's shift plus ticked task ids, scoped by session id.
+ * Stored because re-fetching shifts needs the employee's PIN. Never sent to the backend.
  */
 export const useShiftChecklistStore = create(
   persist(
@@ -19,7 +12,7 @@ export const useShiftChecklistStore = create(
       shift: null, // { id, name, start_time, end_time, crosses_midnight, tasks: [...] }
       done: [], // task ids
 
-      /** Remember which shift this session is on. Keeps existing ticks if it's the same session (e.g. someone continues it on this tablet). */
+      /** Keeps existing ticks when it is the same session. */
       setShift: (sessionId, shift) =>
         set((s) => (s.sessionId === sessionId ? { shift } : { sessionId, shift, done: [] })),
 

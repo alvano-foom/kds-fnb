@@ -1,4 +1,4 @@
-import { useAuthStore } from '../store/authStore'
+import { useAuthStore } from '@/store/authStore'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '/api'
 
@@ -10,8 +10,7 @@ export class ApiError extends Error {
   }
 }
 
-// Refresh calls are deduped: if five requests 401 at once, only one
-// /auth/refresh call goes out and the rest await the same promise.
+// Dedupes concurrent refreshes: parallel 401s share one /auth/refresh call.
 let refreshPromise = null
 
 async function tryRefresh() {

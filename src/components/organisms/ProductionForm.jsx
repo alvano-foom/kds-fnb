@@ -1,31 +1,15 @@
 import { useState } from 'react'
-import { useBomPreview, useCreateProduction, useSetProductionState } from '../../hooks/useKitchenSession'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { KitchenProductPicker } from '../molecules/KitchenProductPicker'
-import { BomChecklist } from '../molecules/BomChecklist'
-import { Button } from '../atoms/Button'
-import { Input } from '../atoms/Input'
-import { Spinner } from '../atoms/Spinner'
+import { useBomPreview, useCreateProduction, useSetProductionState } from '@/hooks/useKitchenSession'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { KitchenProductPicker } from './KitchenProductPicker'
+import { BomChecklist } from '@/components/molecules/BomChecklist'
+import { Button } from '@/components/atoms/Button'
+import { Input } from '@/components/atoms/Input'
+import { Spinner } from '@/components/atoms/Spinner'
 
 /**
- * Two steps before anything is written to Odoo:
- *
- *   1. Pick the product + qty, then "Process manufacture order".
- *   2. Review the BoM — every ingredient with the qty this run will
- *      consume — and tick each one off like a todo. "Create Manufacturing
- *      Order / Prep Meal" stays disabled until 100% are ticked.
- *
- * The ticks are a kitchen aid only (see BomChecklist): they are never
- * sent to or validated by the backend.
- *
- * Creating is a two-step call under the hood (create, then mark done) —
- * the decision made with the user is that a kitchen recording what it
- * just made should show up done immediately, not sit around waiting for
- * someone to confirm it. If the "mark done" step fails (e.g. a component
- * ran short — a real possibility, since availability can shift between
- * people at the same kiosk), the MO still exists — it just shows up in
- * the list below flagged for attention, with Retry/Cancel, rather than
- * silently vanishing or blocking the whole form.
+ * Step 1 picks product + qty; step 2 ticks off the BoM before Create is enabled.
+ * Create = create MO then mark done. If "done" fails, the MO stays in the list with Retry/Cancel.
  */
 export function ProductionForm() {
   const employee = useKitchenSessionStore((s) => s.employee)
@@ -57,7 +41,7 @@ export function ProductionForm() {
   function handleProcess() {
     if (!canProcess) return
     setNotice(null)
-    setChecked(new Set()) // a fresh checklist every time — never inherit ticks from a previous run
+    setChecked(new Set()) // never inherit ticks from a previous run
     setStep('review')
   }
 
@@ -195,7 +179,7 @@ export function ProductionForm() {
         </>
       )}
 
-      {/* Shown on step 1 too — a "created but couldn't finish" warning from the run that just ended lands here. */}
+      {/* Also shown on step 1, for a "created but couldn't finish" result from the previous run. */}
       {!reviewing && notice && (
         <p
           className={`rounded-lg px-3 py-2 text-sm ${

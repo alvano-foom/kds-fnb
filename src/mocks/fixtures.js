@@ -1,12 +1,6 @@
-// Single source of truth for demo data. Used by both the MSW handlers
-// (dev + tests) and the fake WebSocket, so what you see on the board and
-// what the "backend" thinks match.
-//
-// Kitchen state lives on the order LINE (sale.order.line), not the order
-// (sale.order) — an order can have some lines cooking and others already
-// served. `client_order_ref` on the order is reused as a table number tag.
+// Demo data shared by the MSW handlers and the fake WebSocket so both agree.
 
-/** @type {import('../../types').User & { password: string, company_ids: string[] }} */
+/** @type {import('@/types').User & { password: string, company_ids: string[] }} */
 export const mockUser = {
   id: 'u1',
   email: 'staff@kawahputih.test',
@@ -15,17 +9,13 @@ export const mockUser = {
   company_ids: ['c1', 'c2'],
 }
 
-/** @type {import('../../types').Company[]} */
+/** @type {import('@/types').Company[]} */
 export const mockCompanies = [
   { id: 'c1', name: 'Kawah Putih', logo_url: '' },
   { id: 'c2', name: 'Ciwidey Valley', logo_url: '' },
   { id: 'c3', name: 'Not Mine Corp', logo_url: '' }, // deliberately NOT in mockUser.company_ids
 ]
 
-// Outlet name and logo are configurable per tenant via this endpoint —
-// never hardcoded in the frontend. Brand color is NOT here: it's a
-// frontend-only theme setting stored in the browser (see
-// src/store/themeStore.js), not part of the API contract.
 export const mockTenantConfig = {
   name: 'FOOM Outlet',
   logo_url: '',
@@ -34,10 +24,7 @@ export const mockTenantConfig = {
 const now = Date.now()
 const minutesAgo = (m) => new Date(now - m * 60_000).toISOString()
 
-/**
- * sale.order records, each with its own order_line children. `kitchen_state`
- * lives on each line; `client_order_ref` (table number) lives on the order.
- */
+/** sale.order records; `kitchen_state` lives on each line, `client_order_ref` (table) on the order. */
 const mockSaleOrders = [
   {
     id: 'so1', name: 'SO0231', client_order_ref: '7', customer_name: 'Alex',
@@ -132,26 +119,16 @@ export function findLine(lineId) {
   return null
 }
 
-// ---------------------------------------------------------------------------
-// Kitchen session / production / scrap — mocks the real foom_fnb_api
-// endpoints under /kitchen and /stock (see the API docs shared 2026-09-30).
-// Kept in the same fixtures file as the order-board data above so a dev
-// touching this file sees both halves of the mock backend together.
-// ---------------------------------------------------------------------------
+// --- Kitchen session / production / scrap (/kitchen, /stock) ---
 
-/** Stand-in for hr.employee + its Kode Absensi field (the real field name is configurable — see foom_fnb_api.employee_code_field). */
+/** Stand-in for hr.employee with its Attendance Code. */
 export const mockKitchenEmployees = [
   { id: 'e1', name: 'Bisma Fauzan', job_title: 'Line Cook', department: 'Kitchen', code: 'F102345', company_id: 'c1' },
   { id: 'e2', name: 'Siti Aminah', job_title: 'Head Cook', department: 'Kitchen', code: 'F100120', company_id: 'c1' },
   { id: 'e3', name: 'Rudi Hartono', job_title: 'Line Cook', department: 'Kitchen', code: 'F200560', company_id: 'c2' },
 ]
 
-/**
- * Stand-in for GET /stock's product list. `available_qty` deliberately
- * limits "Sate Matang" to exercise the real 409 done_failed path (not
- * enough components) so the Production page's "needs attention" recovery
- * flow — retry / cancel — actually gets tested, not just the happy path.
- */
+/** GET /stock products. "Sate Matang" is short on stock on purpose to exercise 409 done_failed. */
 export const mockKitchenProducts = [
   { product_id: 'p1', name: 'Nasi Goreng Spesial', uom: 'Portion', kind: 'manufacture', available_qty: 50, is_available: true },
   { product_id: 'p2', name: 'Ayam Bakar', uom: 'Portion', kind: 'manufacture', available_qty: 30, is_available: true },
@@ -204,27 +181,17 @@ export function nextProductionName() {
   return `WH/MO/${String(productionCounter).padStart(5, '0')}`
 }
 
-/** Trims the full session record down to what /kitchen/whoami and list endpoints show — same shape either way, just without forcing every caller to know which fields exist. */
+/** Session record as returned by /kitchen/whoami and the list endpoints. */
 export function summarizeKitchenSession(session) {
   return session
 }
 
-// ---------------------------------------------------------------------------
-// Shift master data (foom_attendance's POST /foom/attendance/api/shifts) and
-// the kitchen BoM preview / MO components (foom_fnb_api, 2026-10-03/04).
-// ---------------------------------------------------------------------------
+// --- Attendance shifts, BoM preview, MO components ---
 
 /** Test PIN accepted by the mock attendance /login for every mock employee. */
 export const MOCK_ATTENDANCE_PIN = '482913'
 
-/**
- * Stand-in for foom.attendance.shift, in the real API's exact shape (integer
- * ids, time_from/time_to, is_overnight, tasks[] ordered by sequence).
- * `company_id` is mock-only bookkeeping — the real API scopes by the
- * employee behind the token and never returns it. The overnight (Lintas
- * Hari) shift and the second company exist so "pick the shift matching right
- * now" and company scoping are exercised with more than one candidate.
- */
+/** foom.attendance.shift in the real API shape. `company_id` is mock-only; the real API scopes by token. */
 function mockShift(id, name, code, from, to, overnight, hours, companyId, isDefault, tasks) {
   return {
     id,
@@ -277,13 +244,7 @@ export const mockShifts = [
   ]),
 ]
 
-/**
- * Stand-in for the default mrp.bom per finished product, per the real
- * /kitchen/boms contract: `qty_per_bom` is per `bom_qty` of finished product
- * (Odoo's product_qty); the handler scales it to the requested qty to give
- * `required_qty` / `shortage_qty` / `ok`. Es Teh Manis (kind 'stock') and
- * Rendang Daging deliberately have no BoM, to exercise 409 no_bom.
- */
+/** Default mrp.bom per product; `qty_per_bom` is per `bom_qty`. Es Teh Manis and Rendang Daging have none (409 no_bom). */
 export const mockBoms = {
   p1: {
     bom_id: '1', bom_code: 'BOM-NGS', bom_type: 'normal', product_id: 'p1', barcode: 'NASGOR-01',
@@ -335,7 +296,7 @@ export function previewBom(bom, qty) {
   }
 }
 
-/** /kitchen/productions/{id}/components for a mock MO: its BoM scaled to the MO qty, minus what has already been scrapped. */
+/** A mock MO's BoM scaled to its qty, with what has already been scrapped. */
 export function productionComponents(production, scraps) {
   const bom = mockBoms[production.product_id]
   if (!bom) return []

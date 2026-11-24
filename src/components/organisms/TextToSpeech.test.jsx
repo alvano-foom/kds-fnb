@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TextToSpeech } from './TextToSpeech'
-import { useTtsStore } from '../../store/ttsStore'
+import { useTtsStore } from '@/store/ttsStore'
 
 const voices = [
   { voiceURI: 'v1', name: 'Kitchen Voice', lang: 'en-US' },

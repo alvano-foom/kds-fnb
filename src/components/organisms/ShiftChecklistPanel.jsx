@@ -1,15 +1,9 @@
-import { useShiftChecklist } from '../../hooks/useShiftChecklist'
-import { checklistProgress } from '../../lib/bom'
-import { ShiftTaskList } from '../molecules/ShiftTaskList'
-import { Spinner } from '../atoms/Spinner'
+import { useShiftChecklist } from '@/hooks/useShiftChecklist'
+import { checklistProgress } from '@/lib/bom'
+import { ShiftTaskList } from '@/components/molecules/ShiftTaskList'
+import { Spinner } from '@/components/atoms/Spinner'
 
-/**
- * "What do I actually have to do this shift?" — the tasks Odoo defines for
- * the shift the kitchen was opened with, as a tickable reminder. Lives on
- * its own page (/shift-checklist), separate from Production. Ticks are a
- * reminder only: stored on this tablet per kitchen session, never sent to
- * the backend.
- */
+/** Tickable task reminder for the session's shift; ticks stay on this device. */
 export function ShiftChecklistPanel() {
   const { shift, shiftName, tasks, doneIds, doneCount, isLoading, toggle } = useShiftChecklist()
 

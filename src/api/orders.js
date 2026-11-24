@@ -1,6 +1,6 @@
 import { apiFetch } from './client'
 
-/** Returns OrderLineCard[] — one entry per sale.order.line, scoped by company_id only. */
+/** One card per sale.order.line, scoped by company_id. */
 export function getOrderLines({ companyId, since }) {
   const params = new URLSearchParams({ company_id: companyId })
   if (since) params.set('since', since)

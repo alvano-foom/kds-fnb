@@ -1,27 +1,21 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AppShell } from '../components/templates/AppShell'
-import { KitchenSessionBadge } from '../components/molecules/KitchenSessionBadge'
-import { ShiftChecklistLink } from '../components/molecules/ShiftChecklistLink'
-import { ProductionForm } from '../components/organisms/ProductionForm'
-import { ProductionList } from '../components/organisms/ProductionList'
-import { CloseKitchenSessionPanel } from '../components/organisms/CloseKitchenSessionPanel'
-import { Button } from '../components/atoms/Button'
-import { useTenantConfig } from '../hooks/useTenantConfig'
-import { useLogout } from '../hooks/useAuth'
+import { Button } from '@/components/atoms/Button'
+import { TenantShell } from '@/components/templates/TenantShell'
+import { ShiftChecklistLink } from '@/components/organisms/ShiftChecklistLink'
+import { KitchenSessionBadge } from '@/components/organisms/KitchenSessionBadge'
+import { ProductionForm } from '@/components/organisms/ProductionForm'
+import { ProductionList } from '@/components/organisms/ProductionList'
+import { CloseKitchenSessionPanel } from '@/components/organisms/CloseKitchenSessionPanel'
 
 export function ProductionPage() {
   const navigate = useNavigate()
-  const tenantConfig = useTenantConfig()
-  const logout = useLogout()
   const [closing, setClosing] = useState(false)
 
   return (
-    <AppShell
-      title={tenantConfig.data?.name ?? 'Kitchen Display'}
-      logoUrl={tenantConfig.data?.logo_url}
+    <TenantShell
       leftSlot={<KitchenSessionBadge />}
-      rightSlot={
+      actions={
         <>
           <Button variant="ghost" onClick={() => navigate('/board')}>
             Order Board
@@ -34,9 +28,6 @@ export function ProductionPage() {
           )}
           <Button variant="ghost" onClick={() => navigate('/errors')}>
             Error Log
-          </Button>
-          <Button variant="ghost" onClick={() => logout.mutate()}>
-            Log out
           </Button>
         </>
       }
@@ -59,6 +50,6 @@ export function ProductionPage() {
           </>
         )}
       </div>
-    </AppShell>
+    </TenantShell>
   )
 }

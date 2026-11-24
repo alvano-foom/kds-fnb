@@ -1,9 +1,9 @@
-import { useCompanies } from '../../hooks/useCompanies'
-import { useTenantStore } from '../../store/tenantStore'
-import { useThemeStore } from '../../store/themeStore'
-import { Select } from '../molecules/Select'
-import { Button } from '../atoms/Button'
-import { Spinner } from '../atoms/Spinner'
+import { useCompanies } from '@/hooks/useCompanies'
+import { useTenantStore } from '@/store/tenantStore'
+import { useThemeStore } from '@/store/themeStore'
+import { Select } from '@/components/molecules/Select'
+import { Button } from '@/components/atoms/Button'
+import { Spinner } from '@/components/atoms/Spinner'
 
 export function ConfigForm({ onSaved }) {
   const companies = useCompanies()
@@ -43,9 +43,7 @@ export function ConfigForm({ onSaved }) {
         />
       </div>
 
-      {/* Theme colors are a frontend-only setting (persisted to this
-          browser's localStorage via useThemeStore) — not part of
-          /tenant/config, so picking a color here never touches the API. */}
+      {/* Theme colors are stored locally only, never sent to the API. */}
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="mb-1.5 block text-sm font-medium text-gray-700" htmlFor="primary-color">

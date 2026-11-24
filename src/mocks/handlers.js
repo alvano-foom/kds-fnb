@@ -23,11 +23,10 @@ import {
   nextProductionName,
 } from './fixtures'
 
-/** attendance token -> employee, for the mock /foom/attendance/api endpoints */
+/** attendance token -> employee */
 const attendanceTokens = new Map()
 
-// Access tokens expire fast on purpose (60s) so the silent-refresh flow in
-// useAuth actually gets exercised during normal dev use, not just in tests.
+// Short-lived on purpose so the silent-refresh path runs during normal dev use.
 const ACCESS_TTL_MS = 60_000
 
 function encode(obj) {
@@ -93,9 +92,6 @@ export const handlers = [
     return HttpResponse.json(mockCompanies.filter((c) => allowed.has(c.id)))
   }),
 
-  // One card per order LINE — kitchen_state lives on sale.order.line, not
-  // sale.order, so an order with 3 lines can show up in 3 different columns.
-  // Scoped by company_id only (no Point of Sale scoping).
   http.get('/api/order-lines', ({ request }) => {
     const userId = requireAuth(request)
     if (!userId) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
@@ -116,9 +112,7 @@ export const handlers = [
     if (!found) return errorResponse(404, 'not_found', 'Order line not found.')
     const { kitchen_state } = await request.json()
 
-    // Demo of a server-enforced transition rule so the frontend's 409/rollback
-    // path is exercisable without a real backend: once "served", a line can
-    // only be reopened to "ready", never straight back to "pending".
+    // Server-side transition rule so the 409/rollback path can be exercised: served -> ready only.
     if (found.line.kitchen_state === 'served' && kitchen_state === 'pending') {
       return errorResponse(409, 'invalid_transition', 'Cannot move a served line back to pending.')
     }
@@ -128,9 +122,7 @@ export const handlers = [
     return HttpResponse.json(toOrderLineCard(found.order, found.line))
   }),
 
-  // -------------------------------------------------------------------
-  // Kitchen session / production / scrap (foom_fnb_api's /kitchen, /stock)
-  // -------------------------------------------------------------------
+  // --- Kitchen session / production / scrap ---
 
   http.post('/api/kitchen/whoami', async ({ request }) => {
     const userId = requireAuth(request)
@@ -248,7 +240,7 @@ export const handlers = [
     if (!employee) return errorResponse(401, 'invalid_employee_code', 'Kode absensi tidak dikenal.')
 
     if (action === 'confirm') {
-      // no-op in this mock — productions are already created confirmed, matching the real backend's default.
+      // no-op: productions are created confirmed, like the real backend.
     } else if (action === 'start') {
       production.state = 'in_progress'
       production.qty_producing = qty ?? production.qty
@@ -374,7 +366,7 @@ export const handlers = [
       return errorResponse(400, 'bad_request', 'items must be a non-empty list.')
     }
 
-    // Validate everything before writing anything — the real endpoint is all-or-nothing per request.
+    // All-or-nothing, like the real endpoint.
     const components = productionComponents(production, session.scraps)
     const accepted = []
     for (const item of items) {
@@ -443,10 +435,7 @@ export const handlers = [
       products,
     })
   }),
-  // -------------------------------------------------------------------
-  // foom_attendance public API (separate from /api/kds): token login with
-  // Kode Absensi + PIN, then POST /shifts. Plain JSON, {ok, error, message}.
-  // -------------------------------------------------------------------
+  // --- foom_attendance public API: {ok, error, message} JSON ---
 
   http.post('/foom/attendance/api/login', async ({ request }) => {
     const { code, pin } = await request.json()

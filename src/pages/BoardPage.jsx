@@ -1,57 +1,54 @@
 import { useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AppShell } from '../components/templates/AppShell'
-import { KanbanBoard } from '../components/organisms/KanbanBoard'
-import { PendingOrderAlerts } from '../components/organisms/PendingOrderAlerts'
-import { ConnectionStatus } from '../components/molecules/ConnectionStatus'
-import { ShiftChecklistLink } from '../components/molecules/ShiftChecklistLink'
-import { KitchenSessionBadge } from '../components/molecules/KitchenSessionBadge'
-import { Button } from '../components/atoms/Button'
-import { Spinner } from '../components/atoms/Spinner'
-import { useTenantStore } from '../store/tenantStore'
-import { useTenantConfig } from '../hooks/useTenantConfig'
-import { useOrderLines } from '../hooks/useOrderLines'
-import { useUpdateLineState, useUpdateOrderState } from '../hooks/useUpdateLineState'
-import { useOrderViewStore } from '../store/orderViewStore'
-import { groupByOrder, planOrderMove } from '../lib/orderGroups'
-import { useKitchenSocket } from '../ws/useKitchenSocket'
-import { useLogout } from '../hooks/useAuth'
+import { Button } from '@/components/atoms/Button'
+import { Spinner } from '@/components/atoms/Spinner'
+import { TenantShell } from '@/components/templates/TenantShell'
+import { useTenantStore } from '@/store/tenantStore'
+import { KitchenSessionBadge } from '@/components/organisms/KitchenSessionBadge'
+import { ShiftChecklistLink } from '@/components/organisms/ShiftChecklistLink'
+import { KanbanBoard } from '@/components/organisms/KanbanBoard'
+import { PendingOrderAlerts } from '@/components/organisms/PendingOrderAlerts'
+import { ConnectionStatus } from '@/components/molecules/ConnectionStatus'
+import { useOrderLines } from '@/hooks/useOrderLines'
+import { useUpdateLineState, useUpdateOrderState } from '@/hooks/useUpdateLineState'
+import { useOrderViewStore } from '@/store/orderViewStore'
+import { groupByOrder, planOrderMove } from '@/lib/orderGroups'
+import { useKitchenSocket } from '@/ws/useKitchenSocket'
 
 export function BoardPage() {
   const navigate = useNavigate()
   const { companyId, companyName } = useTenantStore()
-  const tenantConfig = useTenantConfig()
   const { status } = useKitchenSocket(companyId)
   const lines = useOrderLines(companyId, { polling: status === 'polling' })
-  const updateState = useUpdateLineState(companyId)
+  const updateLine = useUpdateLineState(companyId)
   const updateOrder = useUpdateOrderState(companyId)
   const perTransaction = useOrderViewStore((s) => s.perTransaction)
-  // The query always holds one entry per order line; per-transaction mode only
-  // regroups them for display, so websocket/polling updates keep working as is.
-  const cards = useMemo(() => (perTransaction ? groupByOrder(lines.data ?? []) : lines.data ?? []), [perTransaction, lines.data])
+
+  // The cache always holds one entry per order line; per-transaction mode only regroups for display.
+  const cards = useMemo(
+    () => (perTransaction ? groupByOrder(lines.data ?? []) : (lines.data ?? [])),
+    [perTransaction, lines.data],
+  )
 
   function handleDrop(cardId, kitchenState) {
     if (!perTransaction) {
-      updateState.mutate({ lineId: cardId, kitchenState })
+      updateLine.mutate({ lineId: cardId, kitchenState })
       return
     }
     const card = cards.find((c) => c.id === cardId)
     const moves = card ? planOrderMove(card, kitchenState) : []
     if (moves.length) updateOrder.mutate({ moves })
   }
-  const logout = useLogout()
 
   return (
-    <AppShell
-      title={tenantConfig.data?.name ?? 'Kitchen Display'}
-      logoUrl={tenantConfig.data?.logo_url}
+    <TenantShell
       leftSlot={
         <div className="flex min-w-0 flex-col">
           <span className="truncate text-sm text-brand-contrast/80">{companyName}</span>
           <KitchenSessionBadge />
         </div>
       }
-      rightSlot={
+      actions={
         <>
           <ConnectionStatus status={status} />
           <ShiftChecklistLink />
@@ -64,9 +61,6 @@ export function BoardPage() {
           <Button variant="ghost" onClick={() => navigate('/errors')}>
             Error Log
           </Button>
-          <Button variant="ghost" onClick={() => logout.mutate()}>
-            Log out
-          </Button>
         </>
       }
     >
@@ -76,14 +70,11 @@ export function BoardPage() {
         </div>
       ) : (
         <>
-          {/* Mounted only once real data has loaded, so its first render
-              establishes the true baseline — mounting it earlier (while
-              lines.data is still undefined) would treat every already-
-              pending seed order as "newly" pending the moment data arrives. */}
+          {/* Mount only after data loads so its first render is the baseline, not "every order is new". */}
           <PendingOrderAlerts cards={lines.data ?? []} />
           <KanbanBoard cards={cards} onDrop={handleDrop} />
         </>
       )}
-    </AppShell>
+    </TenantShell>
   )
 }

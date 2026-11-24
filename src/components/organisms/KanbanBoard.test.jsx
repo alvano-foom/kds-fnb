@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import { KanbanBoard, resolveDrop } from './KanbanBoard'
+import { KanbanBoard } from './KanbanBoard'
+import { resolveDrop } from '@/lib/resolveDrop'
 
 const now = new Date().toISOString()
 // Two lines from the SAME order (SO01), one pending one cooking — this is
@@ -42,7 +43,7 @@ describe('KanbanBoard', () => {
 
 describe('KanbanBoard — per-transaction cards', () => {
   it('shows one card per order (in the order’s earliest column) and drops resolve on that card', async () => {
-    const { groupByOrder } = await import('../../lib/orderGroups')
+    const { groupByOrder } = await import('@/lib/orderGroups')
     const orders = groupByOrder(cards)
 
     render(<KanbanBoard cards={orders} onDrop={vi.fn()} />)

@@ -2,20 +2,18 @@ import '@testing-library/jest-dom/vitest'
 import { afterAll, afterEach, beforeAll } from 'vitest'
 import { cleanup } from '@testing-library/react'
 import { server } from './server'
-import { useAuthStore } from '../store/authStore'
-import { useTenantStore } from '../store/tenantStore'
-import { DEFAULT_THEME, useThemeStore } from '../store/themeStore'
-import { DEFAULT_TTS, useTtsStore } from '../store/ttsStore'
-import { usePrinterStore } from '../store/printerStore'
-import { useErrorLogStore } from '../store/errorLogStore'
-import { useOrderViewStore } from '../store/orderViewStore'
-import { useKitchenSessionStore } from '../store/kitchenSessionStore'
-import { useShiftChecklistStore } from '../store/shiftChecklistStore'
-import { resetKitchenMockData } from '../api/mocks/fixtures'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { DEFAULT_THEME, useThemeStore } from '@/store/themeStore'
+import { DEFAULT_TTS, useTtsStore } from '@/store/ttsStore'
+import { usePrinterStore } from '@/store/printerStore'
+import { useErrorLogStore } from '@/store/errorLogStore'
+import { useOrderViewStore } from '@/store/orderViewStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { useShiftChecklistStore } from '@/store/shiftChecklistStore'
+import { resetKitchenMockData } from '@/mocks/fixtures'
 
-// jsdom has no SpeechSynthesis implementation. A passive stub keeps the
-// TextToSpeech component's SUPPORTED check true across the suite;
-// TextToSpeech.test.jsx swaps in vi.fn() spies where it needs to assert calls.
+// jsdom has no SpeechSynthesis; a passive stub keeps TextToSpeech's SUPPORTED check true.
 if (typeof window !== 'undefined' && !window.speechSynthesis) {
   window.speechSynthesis = {
     getVoices: () => [],

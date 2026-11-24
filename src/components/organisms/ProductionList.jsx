@@ -1,6 +1,6 @@
-import { useKitchenSessionDetail, useSetProductionState } from '../../hooks/useKitchenSession'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { Spinner } from '../atoms/Spinner'
+import { useKitchenSessionDetail, useSetProductionState } from '@/hooks/useKitchenSession'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { Spinner } from '@/components/atoms/Spinner'
 
 const STATE_STYLES = {
   done: 'bg-emerald-50 text-emerald-700',

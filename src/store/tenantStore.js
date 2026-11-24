@@ -1,12 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-/**
- * Selected company. A kitchen display is normally one device fixed to one
- * outlet, so a single persisted slot (not one-per-user) is the right
- * amount of complexity here — ponytail: add per-user namespacing only if
- * a shared device switching between logins turns out to matter.
- */
+/** Selected company, one per device (a kitchen display is fixed to one outlet). */
 export const useTenantStore = create(
   persist(
     (set) => ({

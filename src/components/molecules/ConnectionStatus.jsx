@@ -1,4 +1,4 @@
-import { StatusDot } from '../atoms/StatusDot'
+import { StatusDot } from '@/components/atoms/StatusDot'
 
 const STATUS_META = {
   connected: { color: 'green', label: 'Connected' },

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { http, HttpResponse } from 'msw'
-import { server } from '../test/server'
+import { server } from '@/test/server'
 import { useUpdateOrderState } from './useUpdateLineState'
 import { orderLinesQueryKey } from './useOrderLines'
 

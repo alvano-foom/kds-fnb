@@ -1,14 +1,8 @@
 import { apiFetch } from './client'
 
-// Kitchen session / production / scrap — see foom_fnb_api's API docs,
-// section "Kitchen session & produksi". Every call here carries an
-// employee_code (the Kode Absensi) so Odoo knows who actually performed
-// the action, separate from whichever Odoo user is logged into this app
-// (the JWT bearer token already attached by apiFetch satisfies this
-// section's "API key OR bearer" auth requirement — no separate API key
-// needed from this app).
+// employee_code (the Attendance Code) records who performed each action, separate from the logged-in Odoo user.
 
-/** Looks up an employee by Kode Absensi and reports any session they already have open — lets the UI offer "resume" instead of erroring. */
+/** Resolves an Attendance Code to an employee and reports the company's open session, if any. */
 export function whoami({ companyId, employeeCode }) {
   return apiFetch('/kitchen/whoami', {
     method: 'POST',
@@ -16,11 +10,7 @@ export function whoami({ companyId, employeeCode }) {
   })
 }
 
-/**
- * `shift` is free text on the kitchen API (the display name of the shift the
- * operator picked — the shift list itself comes from foom_attendance, see
- * api/attendance.js).
- */
+/** `shift` is free text: the display name of the shift picked from foom_attendance. */
 export function openKitchenSession({ companyId, employeeCode, shift }) {
   return apiFetch('/kitchen/sessions', {
     method: 'POST',
@@ -29,13 +19,9 @@ export function openKitchenSession({ companyId, employeeCode, shift }) {
 }
 
 /**
- * Read-only BoM preview for the pre-create checklist: which components get
- * consumed for `qty` of the finished product, with free qty per component.
- * Safe to call repeatedly — creates nothing and reserves nothing. Same
- * numbers the MO will get (Odoo's bom.explode). `shortage_qty` / `ok` are
- * hints only; 409 done_failed on finishing the MO stays the authority.
+ * Read-only BoM preview (creates/reserves nothing). Shortage fields are hints; finishing the MO is the authority.
  * Errors: 409 no_bom, 400 bom_mismatch, 404 not_found.
- * @returns {Promise<import('../lib/bom').BomPreview>}
+ * @returns {Promise<import('@/lib/bom').BomPreview>}
  */
 export function getBomPreview({ companyId, productId, qty, warehouseId }) {
   const params = new URLSearchParams()
@@ -46,21 +32,14 @@ export function getBomPreview({ companyId, productId, qty, warehouseId }) {
   return apiFetch(`/kitchen/boms?${params.toString()}`)
 }
 
-/**
- * The ingredients one MO consumes (the finished good is deliberately not in
- * the list) with how much of each has already been scrapped — the data
- * source for the Close Kitchen scrap screen.
- */
+/** An MO's ingredients (finished good excluded) with the qty already scrapped. */
 export function getProductionComponents(productionId) {
   return apiFetch(`/kitchen/productions/${productionId}/components`)
 }
 
 /**
- * Scrap ingredients of one MO. Each item's product must be a component of
- * that MO — the finished good is rejected (400 not_a_component). Scraps are
- * created and validated immediately; the response carries the refreshed
- * `components`. Errors: 401 invalid_employee_code, 409 scrap_failed (e.g.
- * not enough stock at that location).
+ * Scraps are validated immediately; the response carries refreshed `components`.
+ * Errors: 400 not_a_component, 401 invalid_employee_code, 409 scrap_failed.
  * @param {string} productionId
  * @param {{employeeCode: string, items: {product_id: string, qty: number, reason?: string}[]}} opts
  */
@@ -76,7 +55,7 @@ export function listProductionScraps(productionId) {
   return apiFetch(`/kitchen/productions/${productionId}/scraps`)
 }
 
-/** Full detail incl. productions[], scraps[], logs[] — the source of truth for the Production page's list. */
+/** Full detail incl. productions[], scraps[], logs[]. */
 export function getKitchenSession(id) {
   return apiFetch(`/kitchen/sessions/${id}`)
 }
@@ -89,13 +68,7 @@ export function listKitchenSessions({ companyId, state } = {}) {
   return apiFetch(`/kitchen/sessions${qs ? `?${qs}` : ''}`)
 }
 
-/**
- * Creates a Manufacturing Order. Auto-confirmed by the backend unless
- * `confirm: false` is sent — this app never sends that, since the
- * decision made with the user is that a kitchen recording what it just
- * made should end up `done` immediately (see setProductionState below),
- * not sitting in a draft/confirmed state waiting on someone.
- */
+/** Creates a Manufacturing Order; the backend auto-confirms it. */
 export function createProduction({ companyId, employeeCode, productId, qty, bomId }) {
   return apiFetch('/kitchen/productions', {
     method: 'POST',

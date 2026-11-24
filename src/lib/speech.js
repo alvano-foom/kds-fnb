@@ -1,12 +1,4 @@
-// Thin wrapper around the browser's native SpeechSynthesis API — shared by
-// the manual "Speak" button (TextToSpeech.jsx) and the automatic new-order
-// announcements (PendingOrderAlerts.jsx) so both use the same voice
-// preference and the same Indonesian-pronunciation default.
-
-// Checked at call time rather than cached as a load-time constant: speech.js
-// can end up imported before test setup has finished installing its
-// window.speechSynthesis stub, and a load-time constant would freeze in the
-// wrong answer.
+// Checked at call time: this module can load before the test setup installs its speechSynthesis stub.
 export function isSpeechSupported() {
   return typeof window !== 'undefined' && 'speechSynthesis' in window
 }
@@ -26,20 +18,8 @@ export function pickIndonesianVoiceURI(voices) {
 }
 
 /**
- * Speaks `text`, requesting Indonesian pronunciation by default
- * (`lang: 'id-ID'`). This is always set on the utterance — including when
- * a specific voice is picked — because it's the only lever the Web Speech
- * API gives a page for pronunciation; whether it actually produces an
- * Indonesian *accent* depends on the voice itself: a voice whose own
- * language isn't Indonesian (e.g. "Microsoft David - English (US)") will
- * still speak with its own accent regardless of this setting — that's a
- * limitation of what voice the browser/OS has installed, not something a
- * page can override. See isIndonesianVoice() / pickIndonesianVoiceURI()
- * for helping the person choose a voice that actually supports it.
- *
- * By default this queues behind anything already speaking (the browser
- * plays queued utterances in order); pass `interrupt: true` to cut in
- * immediately, which the manual "Speak" test button does.
+ * Speaks `text` with lang 'id-ID' (the only pronunciation lever the Web Speech API offers;
+ * a non-Indonesian voice still keeps its own accent). Queues by default; `interrupt: true` cuts in.
  */
 export function speakText(text, { voiceURI = '', lang = 'id-ID', interrupt = false } = {}) {
   if (!isSpeechSupported() || !text?.trim()) return null
@@ -57,10 +37,7 @@ export function stopSpeaking() {
   if (isSpeechSupported()) window.speechSynthesis.cancel()
 }
 
-// Card fields an announcement template can reference. `customer_reference`
-// is an alias for table_number — it's what this same field is called on
-// the Odoo sale.order record (client_order_ref, labeled "Customer
-// Reference"), so either name reads naturally in a template.
+// customer_reference aliases table_number (Odoo calls client_order_ref "Customer Reference").
 const PLACEHOLDERS = {
   qty: (card) => card.qty,
   product_name: (card) => card.product_name,
@@ -70,12 +47,7 @@ const PLACEHOLDERS = {
 
 export const ANNOUNCEMENT_PLACEHOLDER_NAMES = Object.keys(PLACEHOLDERS)
 
-/**
- * Fills a configurable template (e.g. "{qty} {product_name} for table
- * {customer_reference}", the default in store/ttsStore.js) in with a
- * card's real data. A template with no placeholders is returned unchanged,
- * so a plain static message works too.
- */
+/** Fills a template like "{qty} {product_name} for table {customer_reference}" with a card's data. */
 export function formatAnnouncement(template, card) {
   return template.replace(/\{(\w+)\}/g, (match, key) => {
     const getValue = PLACEHOLDERS[key]

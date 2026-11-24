@@ -1,18 +1,10 @@
 import { useState } from 'react'
-import { useCreateProductionScraps, useProductionComponents } from '../../hooks/useKitchenSession'
-import { Button } from '../atoms/Button'
-import { Input } from '../atoms/Input'
-import { Spinner } from '../atoms/Spinner'
+import { useCreateProductionScraps, useProductionComponents } from '@/hooks/useKitchenSession'
+import { Button } from '@/components/atoms/Button'
+import { Input } from '@/components/atoms/Input'
+import { Spinner } from '@/components/atoms/Spinner'
 
-/**
- * One manufacturing order / prep meal in the Close Kitchen list. Collapsed it
- * is just a header with its scrap status; expanded it lists the MO's
- * ingredients (GET /kitchen/productions/{id}/components — the finished good
- * is deliberately not in that list, so it can't be scrapped by mistake) with
- * a scrap qty + reason per ingredient. "Record scrap" posts them straight
- * away (the scrap is created and validated by Odoo immediately), so what
- * the operator sees afterwards is what Odoo has.
- */
+/** One MO in the Close Kitchen list; expands to record scrap per ingredient, posted immediately. */
 export function ProductionScrapRow({ mo, expanded, onToggle, hasScrap, markedNoScrap, onMarkNoScrap, employeeCode }) {
   const components = useProductionComponents(expanded ? mo.id : null)
   const createScraps = useCreateProductionScraps()

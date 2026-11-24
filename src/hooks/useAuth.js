@@ -1,8 +1,8 @@
 import { useMutation } from '@tanstack/react-query'
-import { login as loginRequest, logout as logoutRequest } from '../api/auth'
-import { useAuthStore } from '../store/authStore'
-import { useTenantStore } from '../store/tenantStore'
-import { useKitchenSessionStore } from '../store/kitchenSessionStore'
+import { login as loginRequest, logout as logoutRequest } from '@/api/auth'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
 
 export function useLogin() {
   const setTokens = useAuthStore((s) => s.setTokens)
@@ -22,9 +22,7 @@ export function useLogout() {
     onSettled: () => {
       signOut()
       clearConfig()
-      // Not necessarily the same person logging back in — don't let the
-      // next login inherit "who's attributed to kitchen actions" from
-      // whoever was last identified via Kode Absensi on this device.
+      // The next user must not inherit the last identified kitchen operator.
       clearKitchenSession()
     },
   })

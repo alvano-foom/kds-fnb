@@ -1,7 +1,4 @@
-// Kitchen ticket printing — one small popup window per card, styled for a
-// narrow receipt-printer width, using the browser's own print dialog.
-// No PDF library needed: window.print() on a purpose-built document does
-// the job a kitchen printer actually needs.
+// Fallback printing: a receipt-width popup sent to the browser's print dialog.
 
 import { ticketLines } from './orderGroups'
 
@@ -9,10 +6,10 @@ function escapeHtml(value) {
   return String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 }
 
-/** @param {import('../types').OrderLineCard} card */
+/** @param {import('@/types').OrderLineCard} card */
 export function printReceipt(card) {
   const win = window.open('', '_blank', 'width=380,height=600')
-  if (!win) return false // popup blocked — nothing more we can do here
+  if (!win) return false // popup blocked
 
   const printedAt = new Date().toLocaleString()
   win.document.write(`<!doctype html>
@@ -50,9 +47,7 @@ export function printReceipt(card) {
 </html>`)
   win.document.close()
   win.onafterprint = () => win.close()
-  // A brief delay lets the popup finish laying out the document before the
-  // print dialog opens — calling print() synchronously right after
-  // document.close() is unreliable in some browsers.
+  // print() right after document.close() is unreliable in some browsers; let layout finish first.
   setTimeout(() => {
     win.focus()
     win.print()

@@ -1,21 +1,12 @@
 import { useMemo, useState } from 'react'
-import { useKitchenSessionDetail, useCloseKitchenSession } from '../../hooks/useKitchenSession'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { ProductionScrapRow } from '../molecules/ProductionScrapRow'
-import { Button } from '../atoms/Button'
+import { useKitchenSessionDetail, useCloseKitchenSession } from '@/hooks/useKitchenSession'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { ProductionScrapRow } from './ProductionScrapRow'
+import { Button } from '@/components/atoms/Button'
 
 /**
- * Lists this session's done manufacturing orders / prep meals; tapping one
- * expands its ingredients (from /kitchen/productions/{id}/components) so
- * scrap can be recorded per ingredient. Scrap is recorded immediately via
- * POST /kitchen/productions/{id}/scraps, so closing itself sends no scraps.
- *
- * Client-side policy (decided with the user, not enforced by the real
- * backend): every done MO has to be reviewed before this button will let you
- * close — either it has scrap recorded, or the operator said "No scrap for
- * this one". The backend's own rule is narrower: it only blocks on
- * productions still stuck in a non-final state (`pending_productions`),
- * which `cancelPending`/`force` below can override when needed.
+ * Client-side rule: every done MO must have scrap recorded or be marked "no scrap" before closing.
+ * The backend only blocks on pending productions, which cancelPending/force can override.
  */
 export function CloseKitchenSessionPanel({ onCancel, onClosed }) {
   const employee = useKitchenSessionStore((s) => s.employee)

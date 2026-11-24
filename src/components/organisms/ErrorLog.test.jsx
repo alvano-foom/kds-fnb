@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import { ErrorLog } from './ErrorLog'
-import { useErrorLogStore } from '../../store/errorLogStore'
+import { useErrorLogStore } from '@/store/errorLogStore'
 
 describe('ErrorLog', () => {
   it('shows an empty state with troubleshooting guidance when nothing has been logged', () => {

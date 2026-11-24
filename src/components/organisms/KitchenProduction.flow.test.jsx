@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ProductionForm } from './ProductionForm'
 import { ProductionList } from './ProductionList'
-import { login } from '../../api/auth'
-import { openKitchenSession } from '../../api/kitchen'
-import { useAuthStore } from '../../store/authStore'
-import { useTenantStore } from '../../store/tenantStore'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
+import { login } from '@/api/auth'
+import { openKitchenSession } from '@/api/kitchen'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
 
 function renderProduction() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
