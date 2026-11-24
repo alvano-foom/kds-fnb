@@ -22,7 +22,41 @@ import {
   nextKitchenSessionName,
   nextProductionId,
   nextProductionName,
+  mockOnHand,
+  MOCK_WMS_API_KEY,
+  mockWarehouses,
+  mockLocations,
+  MOCK_KDM_WEBHOOK_SECRET,
+  mockStoreConnectStores,
+  storeConnectStock,
+  storeConnectRequests,
 } from './fixtures'
+
+function wmsError(status, code, message) {
+  return HttpResponse.json({ status, error_code: code, message, errors: [] }, { status })
+}
+
+function wmsAuth(request) {
+  if (request.headers.get('authorization') !== `Bearer ${MOCK_WMS_API_KEY}`) {
+    return { error: wmsError(401, 'WMS_UNAUTHORIZED', 'The API key is invalid or expired.') }
+  }
+  const companyId = request.headers.get('x-company-id') ?? '1'
+  if (!mockCompanies.some((c) => c.id === companyId)) {
+    return { error: wmsError(403, 'WMS_ROLE_FORBIDDEN', `You have no access to company ${companyId}.`) }
+  }
+  return { companyId }
+}
+
+function wmsPage(request, list, message) {
+  const url = new URL(request.url)
+  const limit = Math.min(Number(url.searchParams.get('limit')) || 20, 100)
+  const page = Math.max(Number(url.searchParams.get('page')) || 1, 1)
+  const data = {
+    list: list.slice((page - 1) * limit, page * limit),
+    pagination: { page, limit, total_items: list.length, total_pages: list.length ? Math.ceil(list.length / limit) : 0 },
+  }
+  return HttpResponse.json({ status: 200, message, data })
+}
 
 /** attendance token -> employee */
 const attendanceTokens = new Map()
@@ -214,6 +248,7 @@ export const handlers = [
       name: nextProductionName(),
       state: 'confirmed',
       product_id: product.product_id,
+      barcode: product.barcode,
       product_name: product.name,
       qty,
       qty_producing: 0,
@@ -253,6 +288,7 @@ export const handlers = [
       }
       production.state = 'done'
       production.qty_producing = requestedQty
+      mockOnHand.set(production.product_id, (mockOnHand.get(production.product_id) ?? 0) + requestedQty)
     } else if (action === 'cancel') {
       production.state = 'cancelled'
     } else {
@@ -445,15 +481,77 @@ export const handlers = [
     const companyId = url.searchParams.get('company_id')
     if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
     const productIds = url.searchParams.get('product_ids')?.split(',').filter(Boolean)
-    // no-op here — every seeded mock product is already a kitchen item.
+    const barcodes = url.searchParams.get('barcodes')?.split(',').map((b) => b.trim()).filter(Boolean)
+    // Every seeded mock product is already a kitchen item, so kitchen_only is a no-op here.
     let products = mockKitchenProducts
-    if (productIds?.length) products = products.filter((p) => productIds.includes(p.product_id))
+    if (barcodes?.length) {
+      const missing = barcodes.filter((b) => !products.some((p) => p.barcode === b))
+      if (missing.length) return errorResponse(404, 'not_found', `No product with barcode: ${missing.join(', ')}.`)
+      products = products.filter((p) => barcodes.includes(p.barcode))
+    } else if (productIds?.length) {
+      products = products.filter((p) => productIds.includes(p.product_id))
+    }
+    const locationId = url.searchParams.get('location_id')
     return HttpResponse.json({
       company_id: companyId,
-      warehouse_id: 'w1',
+      warehouse_id: url.searchParams.get('warehouse_id') ?? 'w1',
       warehouse_name: 'Main Warehouse',
-      products,
+      location_id: locationId,
+      location_name: locationId ? mockLocations.find((l) => String(l.id) === locationId)?.complete_name ?? '' : '',
+      products: products.map((p) => ({ ...p, on_hand: mockOnHand.get(p.product_id) ?? 0 })),
     })
+  }),
+
+  // --- foom_wms_api: {status, message, data} / {status, error_code, message} ---
+
+  http.get('*/api/wms/v1/config/warehouses', ({ request }) => {
+    const auth = wmsAuth(request)
+    if (auth.error) return auth.error
+    const list = mockWarehouses.filter((w) => w.company_id === auth.companyId).map(({ company_id: _c, ...w }) => w)
+    return wmsPage(request, list, 'Get warehouses successful')
+  }),
+
+  http.get('*/api/wms/v1/config/warehouses/:warehouseId/locations', ({ request, params }) => {
+    const auth = wmsAuth(request)
+    if (auth.error) return auth.error
+    const warehouse = mockWarehouses.find((w) => String(w.id) === params.warehouseId && w.company_id === auth.companyId)
+    if (!warehouse) return wmsError(404, 'WMS_NOT_FOUND', 'Warehouse not found.')
+    const list = mockLocations.filter((l) => l.warehouse_id === warehouse.id).map(({ warehouse_id: _w, ...l }) => ({ ...l, usage: 'internal', active: true }))
+    return wmsPage(request, list, 'Get locations successful')
+  }),
+
+  // --- Store Connect KDM stock webhook: {api_id, status, message, data} ---
+
+  http.post('*/api/v3/webhooks/kdm/stock', async ({ request }) => {
+    const apiId = Math.random().toString(16).slice(2, 10)
+    const fail = (status, message) => HttpResponse.json({ api_id: apiId, status, message }, { status })
+    if (request.headers.get('authorization') !== `Bearer ${MOCK_KDM_WEBHOOK_SECRET}`) return fail(401, 'INVALID_WEBHOOK_SECRET')
+
+    const body = await request.json().catch(() => null)
+    const positiveInt = (v) => Number.isInteger(v) && v > 0
+    if (!body || !positiveInt(body.company_id) || !positiveInt(body.location_id) || !positiveInt(body.warehouse_id)) {
+      return fail(400, '"company_id", "location_id" and "warehouse_id" must be positive integers')
+    }
+    if (!Array.isArray(body.items) || body.items.length === 0) return fail(400, '"items" must contain at least 1 items')
+    const items = body.items.map((i) => ({ barcode: String(i?.barcode ?? '').trim(), qty: i?.qty }))
+    if (items.some((i) => !i.barcode || !Number.isInteger(i.qty) || i.qty < 0)) {
+      return fail(400, '"items[].barcode" is required and "items[].qty" must be an integer >= 0')
+    }
+    if (new Set(items.map((i) => i.barcode)).size !== items.length) return fail(400, '"items" contains a duplicate barcode')
+
+    const storeKey = `${body.company_id}:${body.warehouse_id}:${body.location_id}`
+    const store = mockStoreConnectStores[storeKey]
+    if (!store) return fail(404, 'Store not found')
+    const unknown = items.filter((i) => !store.barcodes.includes(i.barcode)).map((i) => i.barcode)
+    if (unknown.length) return fail(404, `Barcode not found: ${unknown.join(', ')}`)
+
+    const result = items.map(({ barcode, qty }) => {
+      const previous = storeConnectStock.get(`${storeKey}|${barcode}`) ?? 0
+      storeConnectStock.set(`${storeKey}|${barcode}`, qty)
+      return { barcode, previous_qty: previous, qty, difference: qty - previous }
+    })
+    storeConnectRequests.push(body)
+    return HttpResponse.json({ api_id: apiId, status: 200, message: 'Stock updated', data: { store_uuid: store.store_uuid, items: result } })
   }),
   // --- foom_attendance public API: {ok, error, message} JSON ---
 

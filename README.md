@@ -75,6 +75,18 @@ VITE_USE_MOCKS=false
 
 If a response shape ever needs to differ from the contract, update `docs/openapi.yaml` first, then the matching function in `src/api/`, so the contract, the mocks, and reality never drift apart.
 
+### Warehouse, location and Store Connect
+
+Settings asks for company, warehouse and location before any kitchen screen opens. Warehouses and locations come from `foom_wms_api` (`/api/wms/v1`); after each prep (manufacturing order done) the product's on-hand at that location is pushed to Store Connect's KDM stock webhook. Failures land in the Error Log. Set these per environment in `.env.local` or the hosting provider, never in a committed file:
+
+```bash
+VITE_WMS_API_KEY=<odoo user api key>          # VITE_WMS_API_URL defaults to the Odoo host + /api/wms/v1
+VITE_STORE_CONNECT_URL=https://<store-connect-host>  # empty = sync off
+VITE_STORE_CONNECT_SECRET=<KDM_WEBHOOK_SECRET>
+```
+
+Anything prefixed `VITE_` is bundled into the public JavaScript, so both keys are readable by anyone who can open the app.
+
 ## What's out of scope here
 
 This repo is the frontend only. `docs/api-contract.md` spells out exactly what the backend team needs to build (a `kitchen_state` field on `sale.order`, the JWT auth endpoints, and a small WebSocket gateway in front of Odoo's bus) — none of that is implemented in this repo.

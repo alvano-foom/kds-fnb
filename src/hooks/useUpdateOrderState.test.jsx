@@ -8,9 +8,9 @@ import { orderLinesQueryKey } from './useOrderLines'
 
 function setup(initial) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
-  client.setQueryData(orderLinesQueryKey('c1'), initial)
+  client.setQueryData(orderLinesQueryKey('1'), initial)
   const wrapper = ({ children }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
-  return { client, ...renderHook(() => useUpdateOrderState('c1'), { wrapper }) }
+  return { client, ...renderHook(() => useUpdateOrderState('1'), { wrapper }) }
 }
 
 const cards = [
@@ -60,6 +60,6 @@ describe('useUpdateOrderState', () => {
     })
 
     await waitFor(() => expect(result.current.isError).toBe(true))
-    expect(client.getQueryData(orderLinesQueryKey('c1')).map((c) => c.kitchen_state)).toEqual(['pending', 'cooking'])
+    expect(client.getQueryData(orderLinesQueryKey('1')).map((c) => c.kitchen_state)).toEqual(['pending', 'cooking'])
   })
 })

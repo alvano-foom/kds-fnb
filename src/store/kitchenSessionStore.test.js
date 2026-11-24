@@ -11,12 +11,12 @@ describe('kitchenSessionStore', () => {
     useKitchenSessionStore.getState().setSession({
       session: { id: 'ks1', name: 'KIT/202609/0001', state: 'open' },
       employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
-      companyId: 'c1',
+      companyId: '1',
     })
     const state = useKitchenSessionStore.getState()
     expect(state.session.id).toBe('ks1')
     expect(state.employee.code).toBe('F102345')
-    expect(state.companyId).toBe('c1')
+    expect(state.companyId).toBe('1')
   })
 
   it('useIsKitchenSessionOpen reflects session.state', () => {

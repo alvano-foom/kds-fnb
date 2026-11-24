@@ -21,18 +21,18 @@ function renderPanel(props = {}) {
 async function setUpSession() {
   const data = await login('staff@kawahputih.test', 'password123')
   useAuthStore.getState().setTokens(data)
-  useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
-  const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: 'Shift 1' })
+  useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
+  const session = await openKitchenSession({ companyId: '1', employeeCode: 'F102345', shift: 'Shift 1' })
   useKitchenSessionStore.getState().setSession({
     session,
     employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
-    companyId: 'c1',
+    companyId: '1',
   })
   return session
 }
 
 async function doneMo(productId, qty) {
-  const mo = await createProduction({ companyId: 'c1', employeeCode: 'F102345', productId, qty })
+  const mo = await createProduction({ companyId: '1', employeeCode: 'F102345', productId, qty })
   await setProductionState(mo.id, { employeeCode: 'F102345', action: 'done', qty })
   return mo
 }
@@ -152,7 +152,7 @@ describe('CloseKitchenSessionPanel', () => {
   it('requires cancelling or forcing past a still-pending manufacturing order', async () => {
     await setUpSession()
     // Left confirmed on purpose — never marked done, simulating an MO nobody resolved.
-    await createProduction({ companyId: 'c1', employeeCode: 'F102345', productId: 'p2', qty: 2 })
+    await createProduction({ companyId: '1', employeeCode: 'F102345', productId: 'p2', qty: 2 })
 
     const user = userEvent.setup()
     renderPanel()
