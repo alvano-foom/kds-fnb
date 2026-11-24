@@ -1,23 +1,19 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useWhoami, useOpenKitchenSession, useLoadShifts } from '../../hooks/useKitchenSession'
-import { formatShiftWindow, pickInitialShift } from '../../lib/shifts'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { useShiftChecklistStore } from '../../store/shiftChecklistStore'
-import { useTenantStore } from '../../store/tenantStore'
-import { ShiftTaskList } from '../molecules/ShiftTaskList'
-import { FormField } from '../molecules/FormField'
-import { Input } from '../atoms/Input'
-import { Button } from '../atoms/Button'
-import { Spinner } from '../atoms/Spinner'
+import { useWhoami, useOpenKitchenSession, useLoadShifts } from '@/hooks/useKitchenSession'
+import { formatShiftWindow, pickInitialShift } from '@/lib/shifts'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { useShiftChecklistStore } from '@/store/shiftChecklistStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { ShiftTaskList } from '@/components/molecules/ShiftTaskList'
+import { FormField } from '@/components/molecules/FormField'
+import { Input } from '@/components/atoms/Input'
+import { Button } from '@/components/atoms/Button'
+import { Spinner } from '@/components/atoms/Spinner'
 
 /**
- * The "lasting" gate between Settings and the working screens: identify
- * yourself with a Attendance Code, then either open the kitchen (if it isn't
- * already) or continue into an already-open one — one kitchen session
- * covers the whole shift/company, not one per person, so this same flow
- * also serves as "switch operator" when someone else needs to be the one
- * attributed to what happens next, without closing and reopening.
+ * Identify with an Attendance Code, then open the kitchen or join the open one.
+ * One session covers the whole company shift, so this also acts as "switch operator".
  */
 export function KodeAbsensiGate() {
   const navigate = useNavigate()
@@ -34,10 +30,7 @@ export function KodeAbsensiGate() {
   const whoami = useWhoami()
   const openSession = useOpenKitchenSession()
 
-  // Shifts (and their task lists) come from foom_attendance, whose API needs
-  // the employee's PIN as well as the Attendance Code. The PIN is optional: with
-  // it we offer a shift picker + task preview; without it (or if loading
-  // fails) the form keeps its free-text Shift field and nothing is blocked.
+  // The PIN is optional: it unlocks the foom_attendance shift picker; without it the free-text Shift field is used.
   const loadShifts = useLoadShifts()
   const shifts = useMemo(() => loadShifts.data?.shifts ?? [], [loadShifts.data])
   const hasShifts = shifts.length > 0
@@ -61,7 +54,7 @@ export function KodeAbsensiGate() {
   }
 
   function handleContinueExisting() {
-    // Joining a kitchen someone else opened: if we know the shifts (PIN given), remember the matching one so this tablet can show its checklist too.
+    // Joining an open kitchen: remember the matching shift (if known) so this tablet shows its checklist.
     const joined = checked.open_session
     const match = hasShifts ? shifts.find((x) => x.name.toLowerCase() === (joined.shift || '').toLowerCase()) : null
     if (match) setShiftSnapshot(joined.id, match)

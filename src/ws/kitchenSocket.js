@@ -1,4 +1,4 @@
-import { MockKitchenWebSocket } from '../api/mocks/wsMock'
+import { MockKitchenWebSocket } from '@/mocks/wsMock'
 
 const USE_MOCKS = import.meta.env.VITE_USE_MOCKS === 'true'
 const WS_URL = import.meta.env.VITE_WS_URL ?? 'ws://localhost:8787/ws'
@@ -7,11 +7,7 @@ const BACKOFF_BASE_MS = 1000
 const BACKOFF_MAX_MS = 30_000
 const ATTEMPTS_BEFORE_POLLING = 3
 
-/**
- * Thin reconnect/backoff wrapper around WebSocket, per docs/websocket-events.md.
- * Swaps in the in-browser mock when VITE_USE_MOCKS=true — everything else
- * about this class is identical against the real gateway.
- */
+/** Reconnecting WebSocket (docs/websocket-events.md); uses the in-browser mock when VITE_USE_MOCKS=true. */
 export class KitchenSocket {
   constructor({ companyId, getToken, onEvent, onStatusChange }) {
     this.companyId = companyId

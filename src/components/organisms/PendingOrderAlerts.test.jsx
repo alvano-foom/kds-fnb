@@ -1,12 +1,12 @@
 import { act, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PendingOrderAlerts } from './PendingOrderAlerts'
-import { useTtsStore } from '../../store/ttsStore'
-import { usePrinterStore } from '../../store/printerStore'
-import { useOrderViewStore } from '../../store/orderViewStore'
-import { printCard } from '../../lib/printCard'
+import { useTtsStore } from '@/store/ttsStore'
+import { usePrinterStore } from '@/store/printerStore'
+import { useOrderViewStore } from '@/store/orderViewStore'
+import { printCard } from '@/lib/printCard'
 
-vi.mock('../../lib/printCard', () => ({ printCard: vi.fn() }))
+vi.mock('@/lib/printCard', () => ({ printCard: vi.fn() }))
 
 const baseCard = {
   id: 'l9',

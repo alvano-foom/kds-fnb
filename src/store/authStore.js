@@ -2,11 +2,8 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
 /**
- * Access token lives in memory only (never persisted — limits what an XSS
- * payload could exfiltrate from storage). Refresh token + user are
- * persisted so a reload doesn't force a re-login; on reload accessToken
- * starts null and the first API call's 401 triggers a silent refresh
- * (see src/api/client.js) before anything renders behind a route guard.
+ * Access token stays in memory only to limit XSS exposure; the persisted
+ * refresh token restores it via a silent refresh on the first 401.
  */
 export const useAuthStore = create(
   persist(

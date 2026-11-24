@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { ShiftChecklistLink } from './ShiftChecklistLink'
-import { login } from '../../api/auth'
-import { openKitchenSession } from '../../api/kitchen'
-import { useAuthStore } from '../../store/authStore'
-import { useTenantStore } from '../../store/tenantStore'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { useShiftChecklistStore } from '../../store/shiftChecklistStore'
+import { login } from '@/api/auth'
+import { openKitchenSession } from '@/api/kitchen'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { useShiftChecklistStore } from '@/store/shiftChecklistStore'
 
 function renderLink() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -25,8 +25,8 @@ function renderLink() {
   )
 }
 
-import { mockShifts } from '../../api/mocks/fixtures'
-import { normalizeAttendanceShift } from '../../lib/shifts'
+import { mockShifts } from '@/mocks/fixtures'
+import { normalizeAttendanceShift } from '@/lib/shifts'
 
 /** Opens a kitchen session and remembers a mock shift for it, the way the gate does. */
 async function startSession({ shiftId } = {}) {

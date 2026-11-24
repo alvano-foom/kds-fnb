@@ -2,10 +2,10 @@ import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { OrderCard } from './OrderCard'
-import { printCard } from '../../lib/printCard'
-import { usePrinterStore } from '../../store/printerStore'
+import { printCard } from '@/lib/printCard'
+import { usePrinterStore } from '@/store/printerStore'
 
-vi.mock('../../lib/printCard', () => ({ printCard: vi.fn() }))
+vi.mock('@/lib/printCard', () => ({ printCard: vi.fn() }))
 
 const card = {
   id: 'l1',

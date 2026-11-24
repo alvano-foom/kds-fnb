@@ -10,23 +10,12 @@ import {
   getBomPreview,
   getProductionComponents,
   createProductionScraps,
-} from '../api/kitchen'
-import { attendanceLogin, listAttendanceShifts } from '../api/attendance'
-import { useKitchenSessionStore } from '../store/kitchenSessionStore'
-import { useTenantStore } from '../store/tenantStore'
+} from '@/api/kitchen'
+import { attendanceLogin, listAttendanceShifts } from '@/api/attendance'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { useTenantStore } from '@/store/tenantStore'
 
-/**
- * Looks up an employee by Kode Absensi and reports whether this
- * company's kitchen is already open (and by whom) — the caller decides
- * what to do with that (offer "continue" instead of trying to open a
- * second session, which the backend would reject with 409
- * session_already_open anyway).
- *
- * Neither this nor openKitchenSession's response echoes back the code
- * that was typed, so the caller is responsible for pairing it with
- * whichever identity the server confirms before writing to the store —
- * see KodeAbsensiGate.
- */
+/** The response doesn't echo the Attendance Code back, so the caller must store it with the employee. */
 export function useWhoami() {
   const companyId = useTenantStore((s) => s.companyId)
   return useMutation({ mutationFn: (employeeCode) => whoami({ companyId, employeeCode }) })
@@ -39,13 +28,7 @@ export function useOpenKitchenSession() {
   })
 }
 
-/**
- * Loads the shift list (with each shift's task list) from foom_attendance:
- * logs in with the employee's Kode Absensi + PIN, then reads /shifts with
- * the returned token. The token isn't kept anywhere — one login, one read.
- * Never required: if it fails (wrong PIN, attendance disabled, service
- * down) the Open Kitchen form falls back to its free-text Shift field.
- */
+/** Logs in to foom_attendance and reads the shift list; the token is used once and not kept. */
 export function useLoadShifts() {
   return useMutation({
     mutationFn: async ({ code, pin }) => {
@@ -55,12 +38,7 @@ export function useLoadShifts() {
   })
 }
 
-/**
- * BoM preview for `qty` of the chosen product — drives the pre-create
- * checklist. Off until a product and a positive qty are set. Keyed by qty
- * because the server does the scaling (exactly like the MO will), so a
- * different qty is a different, cheap, read-only request.
- */
+/** Keyed by qty because the server does the scaling. */
 export function useBomPreview(productId, qty) {
   const companyId = useTenantStore((s) => s.companyId)
   const warehouseId = useKitchenSessionStore((s) => s.session?.warehouse_id)
@@ -77,7 +55,7 @@ export function productionComponentsQueryKey(productionId) {
   return ['kitchen-production-components', productionId]
 }
 
-/** Ingredients of one MO (+ how much of each is already scrapped). Pass null to keep it off until the row is expanded. */
+/** Pass null to keep it disabled until the row is expanded. */
 export function useProductionComponents(productionId) {
   return useQuery({
     queryKey: productionComponentsQueryKey(productionId),
@@ -87,7 +65,7 @@ export function useProductionComponents(productionId) {
   })
 }
 
-/** Records scrap for one MO's ingredients; refreshes that MO's components and the session detail (its scraps list drives "needs scrap"). */
+/** Also refreshes the session detail, whose scraps list drives "needs scrap". */
 export function useCreateProductionScraps() {
   const queryClient = useQueryClient()
   const session = useKitchenSessionStore((s) => s.session)
@@ -104,14 +82,7 @@ export function sessionDetailQueryKey(sessionId) {
   return ['kitchen-session', sessionId]
 }
 
-/**
- * The single source of truth for "this session's productions/scraps" —
- * also what keeps the persisted store honest: if the server says this
- * session isn't open any more (closed elsewhere, or simply gone), or the
- * selected company has changed since it was opened, the local copy is
- * cleared instead of leaving the UI stuck believing a session is open
- * that no longer applies.
- */
+/** Also clears the persisted session if the server says it's no longer open or the company changed. */
 export function useKitchenSessionDetail() {
   const session = useKitchenSessionStore((s) => s.session)
   const storedCompanyId = useKitchenSessionStore((s) => s.companyId)
@@ -131,7 +102,7 @@ export function useKitchenSessionDetail() {
 
   useEffect(() => {
     if (!session) return
-    if (query.isError) clear() // 404, or any other failure to confirm — don't trust a stale local copy
+    if (query.isError) clear() // can't confirm it, so don't trust the local copy
     else if (query.data && query.data.state !== 'open') clear()
   }, [session, query.isError, query.data, clear])
 

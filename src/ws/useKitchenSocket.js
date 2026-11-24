@@ -1,15 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { KitchenSocket } from './kitchenSocket'
-import { useAuthStore } from '../store/authStore'
-import { orderLinesQueryKey } from '../hooks/useOrderLines'
+import { useAuthStore } from '@/store/authStore'
+import { orderLinesQueryKey } from '@/hooks/useOrderLines'
 
-/**
- * Opens one socket per companyId scope via a ref so it survives re-renders
- * untouched (advanced-event-handler-refs), feeds order-line events straight
- * into the react-query cache that BoardPage reads from, and exposes a
- * connection status the UI/polling fallback can react to.
- */
+/** One socket per company: pushes order-line events into the react-query cache and reports connection status. */
 export function useKitchenSocket(companyId) {
   const queryClient = useQueryClient()
   const socketRef = useRef(null)

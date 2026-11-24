@@ -1,4 +1,4 @@
-import { useOrderViewStore } from '../../store/orderViewStore'
+import { useOrderViewStore } from '@/store/orderViewStore'
 
 /** Settings → Board & Tickets: what one board card / one printed ticket stands for. */
 export function OrderViewConfig() {

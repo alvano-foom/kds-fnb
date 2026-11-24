@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { usePrinterStore, useActivePrinter, generatePrinterId } from '../../store/printerStore'
+import { usePrinterStore, useActivePrinter, generatePrinterId } from '@/store/printerStore'
 import {
   connectTestPrinter,
   formatReceiptPreview,
@@ -8,47 +8,19 @@ import {
   pairPrinter,
   printTestTicket,
   TEST_CARD,
-} from '../../lib/printer'
+} from '@/lib/printer'
 import {
   checkNetworkBridge,
   isLikelyValidHost,
   listBridgePrinters,
   testNetworkConnection,
-} from '../../lib/networkPrinter'
-import { Button } from '../atoms/Button'
+} from '@/lib/networkPrinter'
+import { Button } from '@/components/atoms/Button'
 
 const DEFAULT_BRIDGE_PORT = '8008'
 const AUTO_CHECK_DEBOUNCE_MS = 700
 
-/**
- * Two independent things live here:
- *  - Print trigger: manual (Print button on each card) vs. automatic
- *    (fires the moment a card enters "pending", same event as the voice
- *    announcement — see PendingOrderAlerts.jsx). Works no matter what's
- *    connected below, or if nothing is: with no printer, it falls back to
- *    the browser's print dialog, same as a manual Print click.
- *  - Which printer is connected — exactly one of:
- *      - Bluetooth: pairs a real BLE thermal printer once so tickets go
- *        straight to it, silently, no popup — see src/lib/printer.js for
- *        the platform constraints (BLE only, never classic/SPP Bluetooth;
- *        Chrome/Edge only; needs a real button click). Web Bluetooth has
- *        no silent reconnect, so there's just one "Pair Printer" action
- *        here rather than a saved list — a saved profile couldn't skip
- *        the chooser anyway.
- *      - Network Printer: prints to a printer reachable over the network
- *        via a small bridge program (printer-bridge/ at the project
- *        root) — see src/lib/networkPrinter.js for why a bridge is
- *        required at all (no raw TCP sockets from a browser) and the
- *        https/mixed-content wrinkle that comes with it. Unlike
- *        Bluetooth, a bridge address is just a remembered host/port, so
- *        these ARE saved as a list of named profiles — add each printer
- *        once, then just pick "Use" on whichever one a station needs.
- *      - Test Printer: a software-only stand-in for when there's no real
- *        printer in the room. Logs what would have printed right here —
- *        also silent, no popup — so the print pipeline (including
- *        auto-print) can be verified on its own before real hardware is
- *        involved.
- */
+/** Auto-print toggle plus the connected printer: Bluetooth (BLE), network bridge profiles, or the simulated Test Printer. */
 export function PrinterConfig() {
   const {
     status,
@@ -88,31 +60,13 @@ export function PrinterConfig() {
   const [bridgePrinterOptions, setBridgePrinterOptions] = useState([])
   const [fetchingBridgeList, setFetchingBridgeList] = useState(false)
 
-  // Port + HTTPS are collapsed behind "Advanced" by default: every bridge
-  // (bridge.js and the Node-RED flow alike) listens on 8008 unless told
-  // otherwise, so the common case really is just "type the bridge's IP".
-  // Still fully configurable for Option B setups — several bridge
-  // processes on different ports on the same computer — someone just has
-  // to open Advanced to change it. Editing a printer that's already on a
-  // non-default port/scheme opens it automatically so nothing is hidden.
+  // Port/HTTPS hidden by default: bridges listen on 8008 unless told otherwise.
   const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  // Automatic reachability for every SAVED printer, not just the one
-  // being typed into the form (see the auto-check effect below that one)
-  // — so opening Settings shows at a glance which bridges answer right
-  // now, without anyone having to click "Use" first just to find out.
-  // Keyed by printer id; kept deliberately generic (no raw error text)
-  // so it never duplicates whatever detailed message the "Use" button's
-  // own real check (or Add's own validation) already shows elsewhere.
+  // Reachability of every saved printer, keyed by id.
   const [liveStatus, setLiveStatus] = useState({})
 
-  // Automatic reachability check: pings the bridge's /status as soon as a
-  // plausible host + port have been typed, so someone filling in the form
-  // finds out right away whether the bridge answers — instead of only
-  // learning that after clicking "Add printer" and then "Use". This is
-  // purely informational: it never blocks Add/Save, and the manual "Use"
-  // button (and "Fetch printer list") still do their own real check too,
-  // since this one can go stale the moment a field changes again.
+  // Informational, debounced reachability check of the host being typed; never blocks saving.
   const [autoCheck, setAutoCheck] = useState({ status: 'idle', message: '' })
   const autoCheckGeneration = useRef(0)
 
@@ -155,8 +109,7 @@ export function PrinterConfig() {
       return next
     })
     networkPrinters.forEach((p) => {
-      // Wrapped in Promise.resolve() so this never throws even if something
-      // (e.g. a test double) returns a plain value instead of a promise.
+      // Promise.resolve() so a non-promise return (e.g. a test double) can't throw.
       Promise.resolve()
         .then(() => checkNetworkBridge({ host: p.host, port: p.port, secure: p.secure }))
         .then(() => {
@@ -169,7 +122,7 @@ export function PrinterConfig() {
     return () => {
       cancelled = true
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-runs whenever any saved printer is added/edited/removed, keyed by the signature below rather than the (re-created-on-every-render) filtered array itself
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by signature; the filtered array is new every render
   }, [printersSignature])
 
   async function recheckPrinter(p) {
@@ -190,8 +143,7 @@ export function PrinterConfig() {
       setConnected({ device, characteristic, serviceLabel: label })
     } catch (err) {
       if (err?.name === 'NotFoundError') {
-        // The person closed the device chooser without picking anything —
-        // not a failure, just back to idle.
+        // Chooser closed without a pick: not a failure.
         usePrinterStore.setState({ status: 'idle' })
         return
       }
@@ -231,9 +183,7 @@ export function PrinterConfig() {
     setFormError(null)
     setBridgePrinterOptions([])
     setAutoCheck({ status: 'idle', message: '' })
-    // Don't hide a non-default port/scheme behind a collapsed toggle when
-    // editing — only start collapsed for a printer that's on the plain
-    // defaults already.
+    // Never hide a non-default port/scheme when editing.
     setAdvancedOpen((profile.port || DEFAULT_BRIDGE_PORT) !== DEFAULT_BRIDGE_PORT || profile.secure === false)
     setFormOpen(true)
   }

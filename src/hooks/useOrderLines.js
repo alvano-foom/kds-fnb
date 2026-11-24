@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { getOrderLines } from '../api/orders'
+import { getOrderLines } from '@/api/orders'
 
 export function orderLinesQueryKey(companyId) {
   return ['order-lines', companyId]

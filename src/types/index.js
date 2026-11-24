@@ -1,7 +1,4 @@
-/**
- * Shared shape definitions, kept as JSDoc typedefs so plain .jsx files get
- * editor autocomplete without introducing TypeScript build tooling.
- */
+/** Shared JSDoc typedefs (editor autocomplete without TypeScript). */
 
 /** @typedef {'pending'|'cooking'|'ready'|'served'} KitchenState */
 
@@ -20,10 +17,7 @@
  */
 
 /**
- * Kitchen state lives on the sale order LINE, not the order — a single
- * order can have some lines still cooking while others are already
- * served. One board card = one order line. `table_number` is the
- * parent sale.order's `client_order_ref` field, used as a table tag.
+ * One sale.order.line; kitchen state lives on the line, not the order.
  *
  * @typedef {Object} OrderLineCard
  * @property {string} id             // sale.order.line id
@@ -40,8 +34,7 @@
  */
 
 /**
- * Configurable per outlet — never hardcoded in the frontend, both come
- * from GET /tenant/config.
+ * From GET /tenant/config.
  *
  * @typedef {Object} TenantConfig
  * @property {string} name       // outlet/store name, e.g. "FOOM Outlet"
@@ -49,10 +42,7 @@
  */
 
 /**
- * Brand colors are NOT part of TenantConfig / the API — this is a
- * frontend-only preference persisted to localStorage (see
- * src/store/themeStore.js), the same way a browser remembers a light/dark
- * theme choice.
+ * Frontend-only, persisted in localStorage (themeStore).
  *
  * @typedef {Object} ThemeColors
  * @property {string} primaryColor   // hex, e.g. "#9333ea"

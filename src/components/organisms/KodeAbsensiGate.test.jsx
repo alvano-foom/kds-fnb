@@ -1,17 +1,17 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { server } from '../../test/server'
+import { server } from '@/test/server'
 import { http, HttpResponse } from 'msw'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { MemoryRouter, Routes, Route } from 'react-router-dom'
 import { KodeAbsensiGate } from './KodeAbsensiGate'
-import { login } from '../../api/auth'
-import { useAuthStore } from '../../store/authStore'
-import { useTenantStore } from '../../store/tenantStore'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
-import { openKitchenSession } from '../../api/kitchen'
-import { useShiftChecklistStore } from '../../store/shiftChecklistStore'
+import { login } from '@/api/auth'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { openKitchenSession } from '@/api/kitchen'
+import { useShiftChecklistStore } from '@/store/shiftChecklistStore'
 
 function renderGate() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -37,7 +37,7 @@ describe('KodeAbsensiGate', () => {
   it('rejects an unknown Kode Absensi', async () => {
     const user = userEvent.setup()
     renderGate()
-    await user.type(screen.getByLabelText('Kode Absensi'), 'BADCODE')
+    await user.type(screen.getByLabelText('Attendance Code'), 'BADCODE')
     await user.click(screen.getByRole('button', { name: /continue/i }))
     expect(await screen.findByText(/tidak dikenal/i)).toBeInTheDocument()
   })
@@ -45,7 +45,7 @@ describe('KodeAbsensiGate', () => {
   it('opens the kitchen and lands on Production when nothing is open yet', async () => {
     const user = userEvent.setup()
     renderGate()
-    await user.type(screen.getByLabelText('Kode Absensi'), 'F102345')
+    await user.type(screen.getByLabelText('Attendance Code'), 'F102345')
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     expect(await screen.findByText(/Bisma Fauzan/)).toBeInTheDocument()
@@ -63,7 +63,7 @@ describe('KodeAbsensiGate', () => {
 
     const user = userEvent.setup()
     renderGate()
-    await user.type(screen.getByLabelText('Kode Absensi'), 'F102345')
+    await user.type(screen.getByLabelText('Attendance Code'), 'F102345')
     await user.click(screen.getByRole('button', { name: /continue/i }))
 
     expect(await screen.findByText(/kitchen is already open/i)).toBeInTheDocument()
@@ -81,8 +81,8 @@ describe('KodeAbsensiGate', () => {
 
     async function reachOpenStep(user, { pin = '482913' } = {}) {
       renderGate()
-      await user.type(screen.getByLabelText('Kode Absensi'), 'F102345')
-      if (pin) await user.type(screen.getByLabelText(/pin absensi/i), pin)
+      await user.type(screen.getByLabelText('Attendance Code'), 'F102345')
+      if (pin) await user.type(screen.getByLabelText(/attendance pin/i), pin)
       await user.click(screen.getByRole('button', { name: /continue/i }))
       await screen.findByRole('button', { name: /not you/i })
     }
@@ -91,7 +91,7 @@ describe('KodeAbsensiGate', () => {
       const user = userEvent.setup()
       await reachOpenStep(user, { pin: '' })
 
-      const input = await screen.findByLabelText(/shift \(optional\)/i)
+      const input = await screen.findByLabelText(/^shift$/i)
       expect(input.tagName).toBe('INPUT')
       await user.type(input, 'Shift 9')
       await user.click(screen.getByRole('button', { name: /open kitchen/i }))
@@ -105,7 +105,7 @@ describe('KodeAbsensiGate', () => {
       const user = userEvent.setup()
       await reachOpenStep(user, { pin: '' })
 
-      await user.type(await screen.findByLabelText('PIN Absensi'), '482913')
+      await user.type(await screen.findByLabelText('Attendance Pin'), '482913')
       await user.click(screen.getByRole('button', { name: /load shifts/i }))
 
       const select = await screen.findByLabelText('Shift')
@@ -167,7 +167,7 @@ describe('KodeAbsensiGate', () => {
       await reachOpenStep(user, { pin: '000000' })
 
       expect(await screen.findByText(/couldn't load shifts/i)).toBeInTheDocument()
-      const input = screen.getByLabelText(/shift \(optional\)/i)
+      const input = screen.getByLabelText(/^shift$/i)
       await user.type(input, 'Pagi')
       await user.click(screen.getByRole('button', { name: /open kitchen/i }))
       expect(await screen.findByText('Production Page')).toBeInTheDocument()
@@ -179,7 +179,7 @@ describe('KodeAbsensiGate', () => {
       await reachOpenStep(user)
 
       expect(await screen.findByText(/couldn't load shifts/i)).toBeInTheDocument()
-      expect(screen.getByLabelText(/shift \(optional\)/i).tagName).toBe('INPUT')
+      expect(screen.getByLabelText(/^shift$/i).tagName).toBe('INPUT')
     })
 
     it('joining a kitchen someone else opened remembers the matching shift when a PIN was given', async () => {
@@ -197,7 +197,7 @@ describe('KodeAbsensiGate', () => {
     it('does not leave the PIN on screen after continuing', async () => {
       const user = userEvent.setup()
       await reachOpenStep(user)
-      expect(screen.queryByLabelText(/pin absensi/i)).not.toBeInTheDocument()
+      expect(screen.queryByLabelText(/attendance pin/i)).not.toBeInTheDocument()
     })
   })
 })

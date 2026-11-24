@@ -1,20 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useKitchenStock } from '../../hooks/useStock'
-import { Input } from '../atoms/Input'
+import { useKitchenStock } from '@/hooks/useStock'
+import { Input } from '@/components/atoms/Input'
 
 /**
- * Search-as-you-type over the kitchen's own product list (GET /stock —
- * there's no separate text-search endpoint, so filtering happens
- * client-side over what's already fetched). Showing `available_qty` next
- * to each option is the point: it lets someone avoid starting a
- * Manufacturing Order that's obviously going to run short, before they've
- * even submitted it.
- *
- * Every product stays selectable, including ones with 0 on hand: this is the
- * list of things to *make*, so a finished good with nothing in stock is the
- * normal case, not a reason to block it. (Earlier versions greyed those out
- * from `is_available`, which made every prep item un-pickable.) Whether the
- * product can actually be made is decided by the BoM step that follows.
+ * Client-side search over GET /stock (there is no search endpoint).
+ * Zero-stock products stay selectable: these are things to make, so the BoM step decides.
  */
 export function KitchenProductPicker({ selected, onSelect }) {
   const [term, setTerm] = useState('')

@@ -1,28 +1,17 @@
 import { useNavigate } from 'react-router-dom'
-import { AppShell } from '../components/templates/AppShell'
-import { ErrorLog } from '../components/organisms/ErrorLog'
-import { Button } from '../components/atoms/Button'
-import { useTenantConfig } from '../hooks/useTenantConfig'
-import { useLogout } from '../hooks/useAuth'
+import { Button } from '@/components/atoms/Button'
+import { TenantShell } from '@/components/templates/TenantShell'
+import { ErrorLog } from '@/components/organisms/ErrorLog'
 
 export function ErrorLogPage() {
   const navigate = useNavigate()
-  const logout = useLogout()
-  const tenantConfig = useTenantConfig()
 
   return (
-    <AppShell
-      title={tenantConfig.data?.name ?? 'Kitchen Display'}
-      logoUrl={tenantConfig.data?.logo_url}
-      rightSlot={
-        <>
-          <Button variant="ghost" onClick={() => navigate('/config')}>
-            Settings
-          </Button>
-          <Button variant="ghost" onClick={() => logout.mutate()}>
-            Log out
-          </Button>
-        </>
+    <TenantShell
+      actions={
+        <Button variant="ghost" onClick={() => navigate('/config')}>
+          Settings
+        </Button>
       }
     >
       <div className="mx-auto max-w-2xl">
@@ -31,6 +20,6 @@ export function ErrorLogPage() {
           <ErrorLog />
         </div>
       </div>
-    </AppShell>
+    </TenantShell>
   )
 }

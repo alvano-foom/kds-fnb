@@ -1,16 +1,8 @@
-import { normalizeAttendanceShift } from '../lib/shifts'
+import { normalizeAttendanceShift } from '@/lib/shifts'
 
 /**
- * foom_attendance's public API — a different module and a different auth
- * scheme from foom_fnb_api's /api/kds: plain JSON (not JSON-RPC), every
- * endpoint is POST, and the employee's session token travels in the body
- * (never a header or URL). Token comes from POST /login with the employee's
- * Kode Absensi *and PIN*, lives 12h by default, and is only ever used here to
- * read the shift list — KDS itself keeps identifying people by Kode Absensi
- * alone (see api/kitchen.js).
- *
- * Base URL: VITE_ATTENDANCE_API_URL if set, otherwise the same Odoo host as
- * the KDS API + /foom/attendance/api.
+ * foom_attendance public API: separate from the KDS API, all POST, token in the body.
+ * Base URL: VITE_ATTENDANCE_API_URL, else the KDS API's host + /foom/attendance/api.
  */
 function attendanceBase() {
   const explicit = import.meta.env.VITE_ATTENDANCE_API_URL
@@ -53,10 +45,8 @@ export function attendanceLogin({ code, pin }) {
 }
 
 /**
- * All active shifts of the token's employee's company, each with its task
- * list, normalised to the app's internal shape (string ids, start_time /
- * end_time / crosses_midnight).
- * @returns {Promise<{timezone: string, shifts: import('../lib/shifts').Shift[]}>}
+ * Active shifts (with tasks) of the token's company, normalised to the app shape.
+ * @returns {Promise<{timezone: string, shifts: import('@/lib/shifts').Shift[]}>}
  */
 export async function listAttendanceShifts({ token }) {
   const data = await attendancePost('/shifts', { token })

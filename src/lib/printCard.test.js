@@ -3,8 +3,8 @@ import { printCard } from './printCard'
 import { printReceipt } from './receipt'
 import { connectTestPrinter, printViaBluetooth } from './printer'
 import { printViaNetwork } from './networkPrinter'
-import { usePrinterStore } from '../store/printerStore'
-import { useErrorLogStore } from '../store/errorLogStore'
+import { usePrinterStore } from '@/store/printerStore'
+import { useErrorLogStore } from '@/store/errorLogStore'
 
 vi.mock('./receipt', () => ({ printReceipt: vi.fn() }))
 vi.mock('./printer', async () => {

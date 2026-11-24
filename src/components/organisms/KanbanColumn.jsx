@@ -1,7 +1,7 @@
 import { useDroppable } from '@dnd-kit/core'
 import { OrderCard } from './OrderCard'
-import { StatusDot } from '../atoms/StatusDot'
-import { KITCHEN_STATE_LABELS } from '../../types'
+import { StatusDot } from '@/components/atoms/StatusDot'
+import { KITCHEN_STATE_LABELS } from '@/types'
 
 const COLUMN_DOT = { pending: 'blue', cooking: 'orange', ready: 'green', served: 'gray' }
 

@@ -1,6 +1,3 @@
-// A live-ticking clock is skipped here (ponytail: not asked for, and the
-// board already re-renders often from WS events / query refetches which
-// keeps this close enough) — add a 30s interval tick if it's ever needed.
 function elapsed(iso) {
   const ms = Date.now() - new Date(iso).getTime()
   const mins = Math.max(0, Math.floor(ms / 60_000))

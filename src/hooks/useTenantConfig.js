@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
-import { getTenantConfig } from '../api/tenant'
+import { getTenantConfig } from '@/api/tenant'
 
-/** Public branding (name/logo/color) for the header — same for every visitor of this tenant. */
+/** Outlet name and logo from the backend. */
 export function useTenantConfig() {
   return useQuery({ queryKey: ['tenant-config'], queryFn: getTenantConfig, staleTime: Infinity })
 }

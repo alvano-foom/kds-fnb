@@ -2,13 +2,13 @@ import { render, screen, within } from '@testing-library/react'
 import { MemoryRouter } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { login } from '../api/auth'
+import { login } from '@/api/auth'
 import { BoardPage } from './BoardPage'
-import { useAuthStore } from '../store/authStore'
-import { useTenantStore } from '../store/tenantStore'
-import { useOrderViewStore } from '../store/orderViewStore'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useOrderViewStore } from '@/store/orderViewStore'
 
-vi.mock('../ws/useKitchenSocket', () => ({ useKitchenSocket: () => ({ status: 'polling' }) }))
+vi.mock('@/ws/useKitchenSocket', () => ({ useKitchenSocket: () => ({ status: 'polling' }) }))
 
 function renderBoard() {
   return render(

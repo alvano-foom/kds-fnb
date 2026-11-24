@@ -1,9 +1,9 @@
 import { useState } from 'react'
-import { useLogin } from '../../hooks/useAuth'
-import { FormField } from '../molecules/FormField'
-import { Input } from '../atoms/Input'
-import { Button } from '../atoms/Button'
-import { Spinner } from '../atoms/Spinner'
+import { useLogin } from '@/hooks/useAuth'
+import { FormField } from '@/components/molecules/FormField'
+import { Input } from '@/components/atoms/Input'
+import { Button } from '@/components/atoms/Button'
+import { Spinner } from '@/components/atoms/Spinner'
 
 export function LoginForm({ onSuccess }) {
   const [email, setEmail] = useState('')

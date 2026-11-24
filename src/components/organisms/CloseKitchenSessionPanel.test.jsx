@@ -3,11 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CloseKitchenSessionPanel } from './CloseKitchenSessionPanel'
-import { login } from '../../api/auth'
-import { openKitchenSession, createProduction, setProductionState } from '../../api/kitchen'
-import { useAuthStore } from '../../store/authStore'
-import { useTenantStore } from '../../store/tenantStore'
-import { useKitchenSessionStore } from '../../store/kitchenSessionStore'
+import { login } from '@/api/auth'
+import { openKitchenSession, createProduction, setProductionState } from '@/api/kitchen'
+import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
+import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
 
 function renderPanel(props = {}) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })

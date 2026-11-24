@@ -3,13 +3,8 @@ import { mockOrders, nextLineId, toOrderLineCard } from './fixtures'
 const STATE_CYCLE = ['pending', 'cooking', 'ready', 'served']
 
 /**
- * A drop-in stand-in for the browser `WebSocket` class, matching just the
- * surface `src/ws/kitchenSocket.js` uses (onopen/onmessage/onclose, send,
- * close, readyState). Lets the whole realtime flow — including reconnect
- * and the polling fallback — be exercised with zero backend.
- *
- * Debug hook: `window.__kdsMockWs.forceClose()` from devtools simulates an
- * abrupt disconnect to watch the reconnect/backoff/polling UI kick in.
+ * In-browser stand-in for the WebSocket surface KitchenSocket uses.
+ * Devtools: `window.__kdsMockWs.forceClose()` simulates a dropped connection.
  */
 export class MockKitchenWebSocket {
   static CONNECTING = 0
@@ -44,7 +39,6 @@ export class MockKitchenWebSocket {
   }
 
   send() {
-    // v1 contract has no required client -> server messages.
   }
 
   close() {

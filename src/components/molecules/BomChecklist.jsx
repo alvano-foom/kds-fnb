@@ -1,19 +1,6 @@
-import { checklistProgress } from '../../lib/bom'
+import { checklistProgress } from '@/lib/bom'
 
-/**
- * The kitchen operator's pre-flight todo: every ingredient the BoM says
- * this run will consume, scaled to the qty being made, each with a
- * checkbox. The ticks are purely a human aid ("yes, I have it out and
- * measured") — they are NOT sent to the backend and never validated by
- * it; the only thing they gate is the Create button in ProductionForm,
- * which stays disabled until progress hits 100%.
- *
- * Quantities come straight from GET /kitchen/boms (`required_qty` — computed
- * server-side with Odoo's own BoM explosion, so it is exactly what the MO
- * will consume). `shortage_qty` only drives an amber "short" hint — it does
- * not block anything, since the real authority on whether the MO can finish
- * is Odoo itself (409 done_failed).
- */
+/** Ingredient checklist before creating an MO. Ticks are client-only and just gate the Create button. */
 export function BomChecklist({ bom, checked, onToggle }) {
   const total = bom.components.length
   const progress = checklistProgress(total, checked.size)

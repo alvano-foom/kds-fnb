@@ -23,7 +23,7 @@
  * @property {BomComponent[]} components
  */
 
-/** Whole-number progress for the checklist header, e.g. { done: 2, total: 5, percent: 40 }. An empty list counts as complete — there is nothing to check. */
+/** e.g. { done: 2, total: 5, percent: 40 }. An empty list counts as complete. */
 export function checklistProgress(total, done) {
   if (total === 0) return { done: 0, total: 0, percent: 100 }
   return { done, total, percent: Math.round((done / total) * 100) }

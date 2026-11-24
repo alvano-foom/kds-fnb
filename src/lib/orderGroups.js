@@ -1,4 +1,4 @@
-import { KITCHEN_STATES } from '../types'
+import { KITCHEN_STATES } from '@/types'
 
 const stateIndex = (state) => KITCHEN_STATES.indexOf(state)
 
@@ -7,20 +7,15 @@ export function isOrderCard(card) {
   return Array.isArray(card?.lines)
 }
 
-/** The lines a ticket should list: all of an order card's lines, or just the card itself for a single-line card. */
+/** The lines a ticket lists: an order card's lines, or the single-line card itself. */
 export function ticketLines(card) {
   return isOrderCard(card) && card.lines.length > 0 ? card.lines : [card]
 }
 
 /**
- * Builds one per-transaction card out of some of an order's lines.
- *
- * Its `kitchen_state` is the EARLIEST state among the lines — an order sits in
- * Pending while anything in it is still pending, moves to Cooking once every
- * line is at least cooking, and so on — so a half-finished order is never
- * mistaken for a finished one. `qty` is the total quantity across the lines.
- *
- * @param {import('../types').OrderLineCard[]} lines non-empty, all from the same order
+ * One per-transaction card from some of an order's lines. Its kitchen_state is the EARLIEST
+ * among the lines, so a half-finished order never looks finished; qty is the total.
+ * @param {import('@/types').OrderLineCard[]} lines non-empty, all from the same order
  */
 export function buildOrderCard(lines) {
   const first = lines[0]
@@ -53,18 +48,9 @@ export function groupByOrder(cards) {
 }
 
 /**
- * What a drop of a per-transaction card on `targetState` has to do to its
- * lines, as `[{ lineId, steps }]` — `steps` being the states to PATCH that
- * line through, in order.
- *
- *  - Forward (Pending → Cooking → Ready → Served): every line that is still
- *    behind the target moves up to it, one state at a time, so a line is
- *    never asked to skip a step the backend might not allow. Lines already at
- *    or past the target are left alone.
- *  - Backward: only the lines sitting in the card's own column move back (the
- *    same single step the per-line board allows); anything further along
- *    stays put. The API still has the final say — a refused move rolls the
- *    whole drop back.
+ * Plan a per-transaction drop on `targetState` as `[{ lineId, steps }]`.
+ * Forward: lines behind the target step up one state at a time (never skipping a state).
+ * Backward: only lines in the card's own column move back one step.
  */
 export function planOrderMove(card, targetState) {
   const target = stateIndex(targetState)

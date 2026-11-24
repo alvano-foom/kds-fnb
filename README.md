@@ -32,17 +32,29 @@ This user has access to two companies (`Kawah Putih`, `Ciwidey Valley`) — a th
 
 ```
 src/
+  main.jsx, App.jsx, queryClient.js   Entry (starts MSW when VITE_USE_MOCKS=true), providers, React Query client
+  routes/         AppRouter + route guards (auth → company → open kitchen session)
   components/
-    atoms/        Button, Input, Badge, Spinner, StatusDot
-    molecules/     FormField, Select, ConnectionStatus, OrderMeta
-    organisms/       LoginForm, ConfigForm, KanbanBoard, KanbanColumn, OrderCard
-    templates/         AuthLayout, AppShell
-  pages/          LoginPage, ConfigPage, BoardPage
-  api/            REST client + endpoint functions, api/mocks/ = MSW handlers + fixtures
+    atoms/        Button, Input, Badge, Spinner, StatusDot (pure, no data)
+    molecules/    FormField, Select, ConnectionStatus, OrderMeta, BomChecklist, ShiftTaskList (presentational)
+    organisms/    Data-connected blocks: LoginForm, KanbanBoard, OrderCard, ProductionForm, PrinterConfig, ...
+    templates/    AppShell, AuthLayout, TenantShell (outlet-branded header + Log out)
+  pages/          One per route; compose templates + organisms
+  api/            client.js (apiFetch, deduped silent refresh) + one file per backend area
+  hooks/          React Query hooks wrapping api/
+  store/          Zustand stores (auth, company, kitchen session, printer, theme, TTS, ...)
+  lib/            Pure logic: order grouping, BoM, shifts, ESC/POS printing, speech
   ws/             WebSocket client (reconnect/backoff + polling fallback)
-  store/          Zustand: auth tokens, selected company, and the local (non-API) theme color
-  hooks/          React Query hooks wrapping the api/ layer
-  types/          JSDoc typedefs shared across the app
+  types/          JSDoc typedefs + kitchen state constants
+  mocks/          MSW handlers, fixtures, fake websocket
+  test/           Vitest setup + MSW server
+```
+
+Rules: atoms and molecules take props only (no stores, hooks or API calls); anything that reads a store or query is an organism. Imports from the same folder are relative (`./Button`); everything else uses the `@/` alias. Tests sit next to the file they test.
+
+Tests read `.env.test`, so they always run against the MSW mocks regardless of what `.env` points at.
+
+```
 docs/
   api-contract.md      Start here — the contract for the backend team
   openapi.yaml         Formal OpenAPI 3.1 spec

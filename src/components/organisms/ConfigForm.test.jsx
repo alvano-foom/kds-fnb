@@ -3,9 +3,9 @@ import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ConfigForm } from './ConfigForm'
-import { login } from '../../api/auth'
-import { useAuthStore } from '../../store/authStore'
-import { useThemeStore } from '../../store/themeStore'
+import { login } from '@/api/auth'
+import { useAuthStore } from '@/store/authStore'
+import { useThemeStore } from '@/store/themeStore'
 
 function renderWithClient(ui) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })

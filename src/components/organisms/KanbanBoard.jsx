@@ -2,23 +2,12 @@ import { useState } from 'react'
 import { DndContext, DragOverlay, closestCenter } from '@dnd-kit/core'
 import { KanbanColumn } from './KanbanColumn'
 import { OrderCardOverlay } from './OrderCard'
-import { KITCHEN_STATES } from '../../types'
+import { KITCHEN_STATES } from '@/types'
+import { resolveDrop } from '@/lib/resolveDrop'
 
-/** Pure decision logic, kept out of the DnD event handler so it's unit-testable without simulating pointer gestures. */
-export function resolveDrop(cards, activeId, overId) {
-  if (!overId) return null
-  const card = cards.find((c) => c.id === activeId)
-  if (!card || card.kitchen_state === overId) return null
-  return { lineId: activeId, kitchenState: overId }
-}
-
-/** @param {import('../../types').OrderLineCard[]} cards one card per order line */
+/** @param {import('@/types').OrderLineCard[]} cards one card per order line */
 export function KanbanBoard({ cards, onDrop }) {
-  // Tracks which card is being dragged so a floating copy of it can be
-  // rendered in the DragOverlay below — see OrderCard.jsx for why: a
-  // column's overflow-y-auto clips anything that tries to move within the
-  // column's own box, so the visible "moving" card has to live outside
-  // every column instead.
+  // The dragged card is rendered in the DragOverlay, since a column's overflow-y-auto clips it.
   const [activeId, setActiveId] = useState(null)
   const activeCard = activeId ? cards.find((c) => c.id === activeId) : null
 

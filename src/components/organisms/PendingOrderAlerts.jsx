@@ -1,46 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
-import { useTtsStore } from '../../store/ttsStore'
-import { usePrinterStore, useActivePrinter } from '../../store/printerStore'
-import { formatAnnouncement, speakText } from '../../lib/speech'
-import { printCard } from '../../lib/printCard'
-import { useOrderViewStore } from '../../store/orderViewStore'
-import { buildOrderCard } from '../../lib/orderGroups'
+import { useTtsStore } from '@/store/ttsStore'
+import { usePrinterStore, useActivePrinter } from '@/store/printerStore'
+import { formatAnnouncement, speakText } from '@/lib/speech'
+import { printCard } from '@/lib/printCard'
+import { useOrderViewStore } from '@/store/orderViewStore'
+import { buildOrderCard } from '@/lib/orderGroups'
 
 const DISMISS_MS = 6000
-// Per-transaction mode: an order's lines reach the board as separate
-// websocket events a moment apart; lines that turn pending within this window
-// are one transaction and get one toast / announcement / ticket.
+// Per-transaction mode: an order's lines arrive as separate WS events a moment apart; lines turning pending within this window count as one order.
 const BATCH_MS = 1000
 
 /**
- * Watches the board's cards for lines newly entering "pending" — either a
- * fresh order line arriving over the WebSocket, or a card dragged back to
- * Pending from Cooking (the one reversal the backend's KITCHEN_TRANSITIONS
- * table actually allows, see models/sale_order_line.py) — and raises a
- * toast plus a spoken (Indonesian) announcement for each one, and (if
- * "Automatically print each new order" is turned on in Settings → Receipt
- * Printer) prints a ticket for it too, the same way OrderCard's manual
- * Print button does. The very first render is treated as the board's
- * starting snapshot, not as new arrivals, so loading an already-busy board
- * doesn't fire a toast (or a ticket) per existing pending line.
- *
- * Dragging a Ready or Served card back to Pending is NOT one of those
- * allowed reversals — the API always rejects it with 409, and
- * useUpdateLineState rolls the card back once that rejection arrives. But
- * the drag is applied to the board OPTIMISTICALLY the instant it's
- * dropped, before the server has said yes or no — so for one render, this
- * component sees a card that just became "pending", even though that
- * transition is about to be undone. Without excluding wasState ready/served
- * below, every doomed drag-to-Pending would announce and print a ticket
- * for an order that was never actually reopened.
- *
-
- * Both the toast text and the spoken text come from the same configurable
- * "Announcement text" template (Settings → Voice Announcements, stored in
- * ttsStore), filled in per card via formatAnnouncement() — so there's no
- * wording hardcoded here.
- *
- * @param {import('../../types').OrderLineCard[]} cards
+ * Toast + voice announcement (+ auto-print ticket, if enabled) for cards newly entering "pending".
+ * The first render is the baseline, so loading a busy board does not announce existing orders.
+ * @param {import('@/types').OrderLineCard[]} cards
  */
 export function PendingOrderAlerts({ cards }) {
   const [alerts, setAlerts] = useState([])
@@ -57,10 +30,7 @@ export function PendingOrderAlerts({ cards }) {
   const perTransaction = useOrderViewStore((s) => s.perTransaction)
   const activePrinter = useActivePrinter()
 
-  // Toast + voice + (if on) ticket for one card — a single order line, or, in
-  // per-transaction mode, a whole order. Kept in a ref so the batch timer
-  // below always runs the latest voice/printer settings, not the ones from
-  // when its batch started.
+  // In a ref so the batch timer always uses the latest voice/printer settings.
   useEffect(() => {
     raiseRef.current = (card) => {
       const lines = card.lines
@@ -96,9 +66,7 @@ export function PendingOrderAlerts({ cards }) {
       for (const card of cards) {
         const wasState = prevStates.get(card.id)
         if (card.kitchen_state !== 'pending' || wasState === 'pending') continue
-        // Ready/Served -> Pending is always rejected by the API (409) — this
-        // is the optimistic-update flash of a drag that's about to be
-        // rolled back, not a real reopening. See the note above.
+        // Ready/Served -> Pending is always rejected (409): this is an optimistic flash about to roll back.
         if (wasState === 'ready' || wasState === 'served') continue
 
         if (!perTransaction) {
@@ -106,8 +74,7 @@ export function PendingOrderAlerts({ cards }) {
           continue
         }
 
-        // Per transaction: collect the order's newly pending lines, then raise
-        // once for the whole order when no more arrive for BATCH_MS.
+        // Collect the order's newly pending lines; raise once when none arrive for BATCH_MS.
         const key = card.order_id ?? card.order_name
         batchRef.current.set(key, [...(batchRef.current.get(key) ?? []), card])
         clearTimeout(batchTimerRef.current)
