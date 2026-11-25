@@ -1,24 +1,19 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
-import { listWarehouses } from './wms'
+import { beforeEach, describe, expect, it } from 'vitest'
+import { login } from './auth'
+import { useAuthStore } from '@/store/authStore'
+import { listLocations, listWarehouses } from './wms'
 
-describe('listWarehouses', () => {
-  afterEach(() => vi.unstubAllEnvs())
-
-  it('reads every page with the API key and company header', async () => {
-    const list = await listWarehouses('1')
-    expect(list.map((w) => w.code)).toEqual(['KP', 'KPK'])
+describe('wms (via this app backend)', () => {
+  beforeEach(async () => {
+    useAuthStore.getState().setTokens(await login('staff@kawahputih.test', 'password123'))
   })
 
-  it('explains a missing API key instead of calling the server', async () => {
-    vi.stubEnv('VITE_WMS_API_KEY', '')
-    await expect(listWarehouses('1')).rejects.toMatchObject({
-      code: 'missing_api_key',
-      message: expect.stringMatching(/VITE_WMS_API_KEY is not set/),
-    })
+  it('lists warehouses and locations without the browser holding any WMS key', async () => {
+    expect((await listWarehouses('1')).map((w) => w.code)).toEqual(['KP', 'KPK'])
+    expect((await listLocations('1', '1')).map((l) => l.complete_name)).toEqual(['KP/Stock', 'KP/Stock/Kitchen'])
   })
 
-  it('surfaces the server message for a wrong key', async () => {
-    vi.stubEnv('VITE_WMS_API_KEY', 'wrong')
-    await expect(listWarehouses('1')).rejects.toMatchObject({ status: 401, code: 'WMS_UNAUTHORIZED' })
+  it("surfaces the backend's message for a company the user can't access", async () => {
+    await expect(listWarehouses('3')).rejects.toMatchObject({ status: 403, message: 'You do not have access to this company.' })
   })
 })

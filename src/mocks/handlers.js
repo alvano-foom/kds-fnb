@@ -30,6 +30,19 @@ import {
   storeConnectStock,
   storeConnectRequests,
 } from './fixtures'
+import { handleLocations, handleStoreStock, handleWarehouses } from '../../server/handlers.js'
+
+/** Server-only env for the backend routes, pointed at the mock Odoo, WMS and Store Connect. */
+function mockServerEnv(request) {
+  const origin = new URL(request.url).origin
+  return {
+    KDS_API_BASE_URL: `${origin}/api`,
+    WMS_API_URL: `${origin}/api/wms/v1`,
+    WMS_API_KEY: MOCK_WMS_API_KEY,
+    STORE_CONNECT_URL: 'http://store-connect.test',
+    STORE_CONNECT_SECRET: MOCK_KDM_WEBHOOK_SECRET,
+  }
+}
 
 function wmsError(status, code, message) {
   return HttpResponse.json({ status, error_code: code, message, errors: [] }, { status })
@@ -457,6 +470,7 @@ export const handlers = [
   }),
 
   http.get('/api/stock', ({ request }) => {
+    if (!requireAuth(request)) return errorResponse(401, 'unauthorized', 'Missing or expired access token.')
     const url = new URL(request.url)
     const companyId = url.searchParams.get('company_id')
     if (!companyId) return errorResponse(400, 'bad_request', 'company_id is required.')
@@ -481,6 +495,12 @@ export const handlers = [
       products: products.map((p) => ({ ...p, on_hand: mockOnHand.get(p.product_id) ?? 0 })),
     })
   }),
+
+  // --- This app's own backend (server/handlers.js), run as-is against the mocks below ---
+
+  http.get('/api/wms/warehouses', ({ request }) => handleWarehouses(request, mockServerEnv(request))),
+  http.get('/api/wms/locations', ({ request }) => handleLocations(request, mockServerEnv(request))),
+  http.post('/api/store-stock', ({ request }) => handleStoreStock(request, mockServerEnv(request))),
 
   // --- foom_wms_api: {status, message, data} / {status, error_code, message} ---
 

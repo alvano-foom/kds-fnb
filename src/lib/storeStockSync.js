@@ -1,16 +1,15 @@
-import { getStock } from '@/api/stock'
-import { isStoreConnectEnabled, pushKdmStock } from '@/api/storeConnect'
+import { apiFetch, SERVER_BASE_URL } from '@/api/client'
 import { useTenantStore } from '@/store/tenantStore'
 import { useErrorLogStore } from '@/store/errorLogStore'
 
 /**
- * After a prep (MO done): read the finished product's on-hand at the configured
- * location and push it to Store Connect. Never throws; failures go to the Error Log.
- * @param {{barcode?: string, product_id?: string, name?: string, product_name?: string}} production
+ * After a prep (MO done), ask this app's backend to push the product's on-hand to
+ * Store Connect. The backend reads the qty from Odoo and holds the webhook secret.
+ * Never throws; failures go to the Error Log.
+ * @param {{barcode?: string, name?: string, product_name?: string}} production
  * @returns {Promise<{barcode: string, qty: number, apiId: string}|null>}
  */
 export async function syncStoreStock(production) {
-  if (!isStoreConnectEnabled()) return null
   const { companyId, warehouseId, locationId } = useTenantStore.getState()
   const label = production.product_name ?? production.name ?? production.barcode ?? 'product'
   const logError = (message, detail) => useErrorLogStore.getState().logError({ category: 'store-connect', message, detail })
@@ -25,19 +24,23 @@ export async function syncStoreStock(production) {
   }
 
   try {
-    const stock = await getStock({ companyId, barcodes: [production.barcode], warehouseId, locationId })
-    const row = stock.products?.find((p) => p.barcode === production.barcode)
-    const qty = Math.max(0, Math.floor(row?.on_hand ?? 0))
-    const result = await pushKdmStock({
-      companyId,
-      warehouseId,
-      locationId,
-      items: [{ barcode: production.barcode, qty }],
-    })
-    return { barcode: production.barcode, qty, apiId: result.api_id }
+    const result = await apiFetch(
+      '/store-stock',
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          company_id: companyId,
+          warehouse_id: warehouseId,
+          location_id: locationId,
+          barcode: production.barcode,
+        }),
+      },
+      { baseUrl: SERVER_BASE_URL },
+    )
+    if (result?.skipped) return null
+    return { barcode: result.barcode, qty: result.qty, apiId: result.api_id }
   } catch (err) {
-    const trace = err.apiId ? ` (api_id ${err.apiId})` : ''
-    logError(`Store Connect stock not updated for ${label}${trace}.`, err.message)
+    logError(`Store Connect stock not updated for ${label}.`, err.message)
     return null
   }
 }
