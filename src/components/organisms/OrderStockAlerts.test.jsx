@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { login } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
+import { useTenantStore } from '@/store/tenantStore'
 import { mockOrders, toOrderLineCard } from '@/mocks/fixtures'
 import { server } from '@/test/server'
 import { OrderStockAlerts } from './OrderStockAlerts'
@@ -20,6 +21,7 @@ function renderAlerts(cards) {
 describe('OrderStockAlerts', () => {
   beforeEach(async () => {
     useAuthStore.getState().setTokens(await login('staff@kawahputih.test', 'password123'))
+    useTenantStore.getState().setConfig({ companyId: '1', warehouseId: '1', locationId: '11' })
   })
 
   it('checks each pending order and lists its stock alerts, worst first', async () => {
@@ -34,7 +36,7 @@ describe('OrderStockAlerts', () => {
     ])
   })
 
-  it('sends existing order lines and asks Odoo for prep alerts', async () => {
+  it('sends existing order lines with the /config warehouse and location', async () => {
     const bodies = []
     server.events.on('request:start', async ({ request }) => {
       if (request.url.endsWith('/stock/check')) bodies.push(await request.clone().json())
@@ -44,8 +46,9 @@ describe('OrderStockAlerts', () => {
     server.events.removeAllListeners()
     const soup = bodies.find((b) => b.lines.some((l) => l.barcode === 'CN001'))
     expect(soup).toMatchObject({
+      warehouse_id: '1',
+      location_id: '11',
       stock_alerts: true,
-      product_alerts: true,
       lines: [{ order_line_id: 'l3', barcode: 'CN001', qty: 1 }],
     })
   })

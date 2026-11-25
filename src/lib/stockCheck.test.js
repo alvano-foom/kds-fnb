@@ -36,7 +36,7 @@ describe('pendingOrderBaskets', () => {
 })
 
 describe('mergeStockAlerts', () => {
-  const alert = (level, message, scope = 'component', product_id = 'i1') => ({ scope, level, message, product_id, name: 'Rice' })
+  const alert = (level, message, product_id = 'i1') => ({ level, message, product_id, name: 'Rice' })
 
   it('keeps one row per ingredient with the worst level and every order that uses it', () => {
     const rows = mergeStockAlerts([
@@ -46,17 +46,14 @@ describe('mergeStockAlerts', () => {
     expect(rows).toEqual([{ key: 'component:i1', scope: 'component', level: 'out', message: 'Rice out', orders: ['SO1', 'SO2'] }])
   })
 
-  it('keeps the dish and its ingredient apart, and treats alerts without scope as ingredients', () => {
+  it('treats an alert about a product in the basket as a prep alert, anything else as an ingredient', () => {
     const rows = mergeStockAlerts([
       {
         orderName: 'SO1',
         result: {
           ok: true,
-          lines: [],
-          stock_alerts: [
-            { level: 'low', message: 'Rice low', product_id: 'i1' },
-            alert('low', 'Nasi: only 3 prepped left', 'product', 'm1'),
-          ],
+          lines: [{ product_id: 'm1', name: 'Nasi', uom: 'Units', is_available: true, shortage_qty: 0 }],
+          stock_alerts: [alert('low', 'Rice low'), alert('low', 'Nasi: only 3 prepped left', 'm1')],
         },
       },
     ])
@@ -72,7 +69,7 @@ describe('mergeStockAlerts', () => {
         orderName: 'SO1',
         result: {
           ok: false,
-          stock_alerts: [alert('low', 'Rice low'), alert('out', 'Latte: prep 1 more', 'product', 'm1')],
+          stock_alerts: [alert('low', 'Rice low'), alert('out', 'Latte: prep 1 more', 'm1')],
           lines: [
             { product_id: 'm1', name: 'Latte', uom: 'Units', is_available: false, shortage_qty: 1 },
             { product_id: 'm2', name: 'Tea', uom: 'Units', is_available: true, shortage_qty: 0 },

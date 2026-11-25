@@ -19,15 +19,15 @@ export function getStock({ companyId, productIds, barcodes, warehouseId, locatio
  * @param {{companyId: string, warehouseId?: string, lines: ({barcode: string}|{product_id: string}) & {qty: number, order_line_id?: string}[]}} basket
  * @returns {Promise<import('@/lib/stockCheck').StockCheckResult>}
  */
-export function checkStock({ companyId, warehouseId, lines }) {
+export function checkStock({ companyId, warehouseId, locationId, lines }) {
   return apiFetch('/stock/check', {
     method: 'POST',
     body: JSON.stringify({
       company_id: companyId,
       warehouse_id: warehouseId || undefined,
+      location_id: locationId,
       lines,
       stock_alerts: true,
-      product_alerts: true,
     }),
   })
 }

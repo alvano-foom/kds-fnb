@@ -1,7 +1,7 @@
 /**
  * @typedef {'insufficient'|'out'|'low'} AlertLevel
  * @typedef {'component'|'product'} AlertScope  product = the dish's own (prepped) stock
- * @typedef {{scope?: AlertScope, level: AlertLevel, message: string, product_id: string, name: string}} StockAlert
+ * @typedef {{level: AlertLevel, message: string, product_id: string, name: string}} StockAlert
  * @typedef {{barcode: string, product_id: string, name: string, uom: string, is_available: boolean, shortage_qty: number}} StockCheckLine
  * @typedef {{ok: boolean, lines: StockCheckLine[], stock_alerts?: StockAlert[]}} StockCheckResult
  * @typedef {{key: string, scope: AlertScope, level: AlertLevel, message: string, orders: string[]}} BoardStockAlert
@@ -34,6 +34,8 @@ export function pendingOrderBaskets(cards) {
 /**
  * Merge per-order results into one list: one row per ingredient (worst level wins),
  * plus a row for each finished product that is short. Worst first.
+ * Odoo sends prep and ingredient alerts in the same shape; an alert about a product
+ * that is itself in the basket is a prep alert, anything else is an ingredient.
  * @param {{orderName: string, result: StockCheckResult}[]} checks
  * @returns {BoardStockAlert[]}
  */
@@ -51,8 +53,10 @@ export function mergeStockAlerts(checks) {
   }
 
   for (const { orderName, result } of checks) {
+    const basket = new Set((result.lines ?? []).map((line) => String(line.product_id)))
     for (const alert of result.stock_alerts ?? []) {
-      add(alert.scope === 'product' ? 'product' : 'component', alert.product_id, alert.level, alert.message, orderName)
+      const scope = basket.has(String(alert.product_id)) ? 'product' : 'component'
+      add(scope, alert.product_id, alert.level, alert.message, orderName)
     }
     for (const line of result.lines ?? []) {
       if (line.is_available) continue
