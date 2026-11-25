@@ -75,6 +75,41 @@ VITE_USE_MOCKS=false
 
 If a response shape ever needs to differ from the contract, update `docs/openapi.yaml` first, then the matching function in `src/api/`, so the contract, the mocks, and reality never drift apart.
 
+### Warehouse, location and Store Connect
+
+Settings asks for company, warehouse and location before any kitchen screen opens. Warehouses and locations come from `foom_wms_api` (`/api/wms/v1`); after each prep (manufacturing order done) the product's on-hand at that location is pushed to Store Connect's KDM stock webhook. Failures land in the Error Log.
+
+Both upstreams need secrets, so the browser never calls them. It calls this app's own backend instead, which holds the secrets:
+
+| Route | Does |
+|---|---|
+| `GET /api/wms/warehouses?company_id=` | Checks the user's KDS login + company access with Odoo, then lists warehouses with the WMS key |
+| `GET /api/wms/locations?company_id=&warehouse_id=` | Same, for internal locations |
+| `POST /api/store-stock` `{company_id, warehouse_id, location_id, barcode}` | Reads on-hand from Odoo as the user (the browser never sends the qty), then pushes it to Store Connect with the secret, retrying 5xx |
+
+The logic is in `server/handlers.js` (plain `Request -> Response`), with one adapter per place it runs:
+
+| Where | How |
+|---|---|
+| `npm run dev`, `dev:staging`, `preview` | Vite middleware (`vite.config.js`), env from `.env.local` / `.env.[mode].local` |
+| Vercel | `api/` functions; set env in the Vercel project settings |
+| Your own server | `npm run build:staging && npm start` (`server/index.js` serves `dist/` + `/api`, `PORT` default 3000); env from the process, e.g. `node --env-file=.env.server server/index.js` |
+
+### Server-side env
+
+No `VITE_` prefix, so Vite never puts them in the bundle:
+
+```bash
+WMS_API_KEY=<odoo user api key with a WMS role>
+STORE_CONNECT_URL=https://<store-connect-host>   # empty = sync off
+STORE_CONNECT_SECRET=<KDM_WEBHOOK_SECRET>
+# optional
+KDS_API_BASE_URL=https://<odoo-domain>/api/kds   # defaults to VITE_API_BASE_URL
+WMS_API_URL=https://<odoo-domain>/api/wms/v1     # defaults to the KDS API host + /api/wms/v1
+```
+
+On your own server, the `VITE_` values (`VITE_API_BASE_URL`, `VITE_WS_URL`, `VITE_USE_MOCKS`) are still needed at build time, and `KDS_API_BASE_URL` is needed at run time unless `VITE_API_BASE_URL` is also in the process env.
+
 ## What's out of scope here
 
 This repo is the frontend only. `docs/api-contract.md` spells out exactly what the backend team needs to build (a `kitchen_state` field on `sale.order`, the JWT auth endpoints, and a small WebSocket gateway in front of Odoo's bus) — none of that is implemented in this repo.

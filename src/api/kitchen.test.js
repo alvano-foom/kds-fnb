@@ -13,11 +13,11 @@ import { useAuthStore } from '@/store/authStore'
 
 async function setUp() {
   useAuthStore.getState().setTokens(await login('staff@kawahputih.test', 'password123'))
-  await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: 'Pagi' })
+  await openKitchenSession({ companyId: '1', employeeCode: 'F102345', shift: 'Pagi' })
 }
 
 async function doneMo(productId, qty) {
-  const mo = await createProduction({ companyId: 'c1', employeeCode: 'F102345', productId, qty })
+  const mo = await createProduction({ companyId: '1', employeeCode: 'F102345', productId, qty })
   await setProductionState(mo.id, { employeeCode: 'F102345', action: 'done', qty })
   return mo
 }
@@ -26,7 +26,7 @@ describe('GET /kitchen/boms', () => {
   beforeEach(setUp)
 
   it('scales components to the requested qty and flags shortages (read-only hint)', async () => {
-    const bom = await getBomPreview({ companyId: 'c1', productId: 'p3', qty: 9 })
+    const bom = await getBomPreview({ companyId: '1', productId: 'p3', qty: 9 })
     expect(bom.qty).toBe(9)
     expect(bom.factor).toBe(9)
     expect(bom.ok).toBe(false)
@@ -36,19 +36,19 @@ describe('GET /kitchen/boms', () => {
   })
 
   it("divides by the BoM's batch size (BoM makes 2, ask for 6 → 3 batches)", async () => {
-    const bom = await getBomPreview({ companyId: 'c1', productId: 'p2', qty: 6 })
+    const bom = await getBomPreview({ companyId: '1', productId: 'p2', qty: 6 })
     expect(bom.components.find((c) => c.name === 'Ayam Potong').required_qty).toBe(1800)
   })
 
   it('defaults to one batch when qty is omitted', async () => {
-    const bom = await getBomPreview({ companyId: 'c1', productId: 'p2' })
+    const bom = await getBomPreview({ companyId: '1', productId: 'p2' })
     expect(bom.qty).toBe(2)
     expect(bom.components.find((c) => c.name === 'Ayam Potong').required_qty).toBe(600)
   })
 
   it('409 no_bom for a product without a BoM, 400 for qty ≤ 0', async () => {
-    await expect(getBomPreview({ companyId: 'c1', productId: 'p4', qty: 1 })).rejects.toMatchObject({ status: 409, code: 'no_bom' })
-    await expect(getBomPreview({ companyId: 'c1', productId: 'p1', qty: 0 })).rejects.toMatchObject({ status: 400 })
+    await expect(getBomPreview({ companyId: '1', productId: 'p4', qty: 1 })).rejects.toMatchObject({ status: 409, code: 'no_bom' })
+    await expect(getBomPreview({ companyId: '1', productId: 'p1', qty: 0 })).rejects.toMatchObject({ status: 400 })
   })
 })
 

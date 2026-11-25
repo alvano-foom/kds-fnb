@@ -23,7 +23,7 @@ function renderBoard() {
 describe('BoardPage — card granularity', () => {
   beforeEach(async () => {
     useAuthStore.getState().setTokens(await login('staff@kawahputih.test', 'password123'))
-    useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
+    useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
   })
 
   it('shows one card per order line by default', async () => {

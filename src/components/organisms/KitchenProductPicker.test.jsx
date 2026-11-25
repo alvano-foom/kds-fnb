@@ -17,7 +17,7 @@ describe('KitchenProductPicker', () => {
         HttpResponse.json({ products: [{ product_id: '9', name: 'MIE KUAH', uom: 'Units', available_qty: 0, is_available: false }] }),
       ),
     )
-    useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
+    useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
     const onSelect = vi.fn()
     render(
       <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>

@@ -9,6 +9,7 @@ import { openKitchenSession } from '@/api/kitchen'
 import { useAuthStore } from '@/store/authStore'
 import { useTenantStore } from '@/store/tenantStore'
 import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
+import { storeConnectRequests } from '@/mocks/fixtures'
 
 function renderProduction() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } })
@@ -24,12 +25,12 @@ describe('kitchen production — create (auto-done) and shortage recovery', () =
   beforeEach(async () => {
     const data = await login('staff@kawahputih.test', 'password123')
     useAuthStore.getState().setTokens(data)
-    useTenantStore.setState({ companyId: 'c1', companyName: 'Kawah Putih' })
-    const session = await openKitchenSession({ companyId: 'c1', employeeCode: 'F102345', shift: 'Shift 1' })
+    useTenantStore.setState({ companyId: '1', companyName: 'Kawah Putih' })
+    const session = await openKitchenSession({ companyId: '1', employeeCode: 'F102345', shift: 'Shift 1' })
     useKitchenSessionStore.getState().setSession({
       session,
       employee: { id: 'e1', name: 'Bisma Fauzan', code: 'F102345' },
-      companyId: 'c1',
+      companyId: '1',
     })
   })
 
@@ -57,6 +58,23 @@ describe('kitchen production — create (auto-done) and shortage recovery', () =
     expect(await screen.findByText(/WH\/MO\/00001/)).toBeInTheDocument()
     await waitFor(() => expect(screen.getByText(/^done$/i)).toBeInTheDocument())
     expect(screen.getByText(/scrap needed before closing/i)).toBeInTheDocument()
+  })
+
+  it('pushes the new on-hand to Store Connect once the prep is done', async () => {
+    useTenantStore.setState({ warehouseId: '1', locationId: '12' })
+    const user = userEvent.setup()
+    renderProduction()
+
+    await pickProduct(user, 'nasi', 'Nasi Goreng Spesial', '10')
+    await tickAll(user)
+    await user.click(createButton())
+
+    // 4 seeded on hand + 10 just made
+    await waitFor(() =>
+      expect(storeConnectRequests).toEqual([
+        { company_id: 1, location_id: 12, warehouse_id: 1, items: [{ barcode: 'NASGOR-01', qty: 14 }] },
+      ]),
+    )
   })
 
   it('previews the BoM with consumed qty scaled to the requested qty', async () => {

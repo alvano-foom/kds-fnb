@@ -14,6 +14,7 @@ import {
 import { attendanceLogin, listAttendanceShifts } from '@/api/attendance'
 import { useKitchenSessionStore } from '@/store/kitchenSessionStore'
 import { useTenantStore } from '@/store/tenantStore'
+import { syncStoreStock } from '@/lib/storeStockSync'
 
 /** The response doesn't echo the Attendance Code back, so the caller must store it with the employee. */
 export function useWhoami() {
@@ -126,7 +127,10 @@ export function useSetProductionState() {
   return useMutation({
     mutationFn: ({ productionId, employeeCode, action, qty, backorder }) =>
       setProductionState(productionId, { employeeCode, action, qty, backorder }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionDetailQueryKey(session?.id) }),
+    onSuccess: (production) => {
+      if (production?.state === 'done') syncStoreStock(production)
+      return queryClient.invalidateQueries({ queryKey: sessionDetailQueryKey(session?.id) })
+    },
   })
 }
 

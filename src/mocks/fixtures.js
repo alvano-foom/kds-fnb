@@ -6,14 +6,14 @@ export const mockUser = {
   email: 'staff@kawahputih.test',
   password: 'password123',
   name: 'Kawah Putih Staff',
-  company_ids: ['c1', 'c2'],
+  company_ids: ['1', '2'],
 }
 
 /** @type {import('@/types').Company[]} */
 export const mockCompanies = [
-  { id: 'c1', name: 'Kawah Putih', logo_url: '' },
-  { id: 'c2', name: 'Ciwidey Valley', logo_url: '' },
-  { id: 'c3', name: 'Not Mine Corp', logo_url: '' }, // deliberately NOT in mockUser.company_ids
+  { id: '1', name: 'Kawah Putih', logo_url: '' },
+  { id: '2', name: 'Ciwidey Valley', logo_url: '' },
+  { id: '3', name: 'Not Mine Corp', logo_url: '' }, // deliberately NOT in mockUser.company_ids
 ]
 
 export const mockTenantConfig = {
@@ -28,7 +28,7 @@ const minutesAgo = (m) => new Date(now - m * 60_000).toISOString()
 const mockSaleOrders = [
   {
     id: 'so1', name: 'SO0231', client_order_ref: '7', customer_name: 'Alex',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l1', barcode: 'FR001', product_name: 'Fried Rice', qty: 2, kitchen_state: 'pending', created_at: minutesAgo(2), updated_at: minutesAgo(2) },
       { id: 'l2', barcode: 'IT001', product_name: 'Iced Tea', qty: 2, kitchen_state: 'pending', created_at: minutesAgo(2), updated_at: minutesAgo(2) },
@@ -36,14 +36,14 @@ const mockSaleOrders = [
   },
   {
     id: 'so2', name: 'SO0232', client_order_ref: '3', customer_name: 'Ben',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l3', barcode: 'CN001', product_name: 'Chicken Noodle Soup', qty: 1, kitchen_state: 'pending', created_at: minutesAgo(4), updated_at: minutesAgo(4) },
     ],
   },
   {
     id: 'so3', name: 'SO0229', client_order_ref: '12', customer_name: 'Claire',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l4', barcode: 'CS001', product_name: 'Chicken Satay', qty: 3, kitchen_state: 'cooking', created_at: minutesAgo(9), updated_at: minutesAgo(3) },
       { id: 'l5', barcode: 'RC001', product_name: 'Rice Cake', qty: 1, kitchen_state: 'ready', created_at: minutesAgo(9), updated_at: minutesAgo(1) },
@@ -51,35 +51,35 @@ const mockSaleOrders = [
   },
   {
     id: 'so4', name: 'SO0227', client_order_ref: '5', customer_name: 'Diana',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l6', barcode: 'VS001', product_name: 'Vegetable Salad', qty: 1, kitchen_state: 'cooking', created_at: minutesAgo(12), updated_at: minutesAgo(5) },
     ],
   },
   {
     id: 'so5', name: 'SO0224', client_order_ref: '9', customer_name: 'Ethan',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l7', barcode: 'MS001', product_name: 'Meatball Soup', qty: 2, kitchen_state: 'ready', created_at: minutesAgo(18), updated_at: minutesAgo(2) },
     ],
   },
   {
     id: 'so6', name: 'SO0220', client_order_ref: '1', customer_name: 'Fiona',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l8', barcode: 'CF001', product_name: 'Crispy Fried Chicken', qty: 1, kitchen_state: 'served', created_at: minutesAgo(30), updated_at: minutesAgo(10) },
     ],
   },
   {
     id: 'so7', name: 'SO0233', client_order_ref: '2', customer_name: 'Grace',
-    company_id: 'c1',
+    company_id: '1',
     lines: [
       { id: 'l9', barcode: 'IC001', product_name: 'Iced Coffee Latte', qty: 4, kitchen_state: 'pending', created_at: minutesAgo(1), updated_at: minutesAgo(1) },
     ],
   },
   {
     id: 'so8', name: 'SO0198', client_order_ref: '14', customer_name: 'Henry',
-    company_id: 'c2',
+    company_id: '2',
     lines: [
       { id: 'l10', barcode: 'SR001', product_name: 'Steamed Rice Bundle', qty: 2, kitchen_state: 'ready', created_at: minutesAgo(20), updated_at: minutesAgo(4) },
     ],
@@ -236,18 +236,18 @@ export function findLine(lineId) {
 
 /** Stand-in for hr.employee with its Attendance Code. */
 export const mockKitchenEmployees = [
-  { id: 'e1', name: 'Bisma Fauzan', job_title: 'Line Cook', department: 'Kitchen', code: 'F102345', company_id: 'c1' },
-  { id: 'e2', name: 'Siti Aminah', job_title: 'Head Cook', department: 'Kitchen', code: 'F100120', company_id: 'c1' },
-  { id: 'e3', name: 'Rudi Hartono', job_title: 'Line Cook', department: 'Kitchen', code: 'F200560', company_id: 'c2' },
+  { id: 'e1', name: 'Bisma Fauzan', job_title: 'Line Cook', department: 'Kitchen', code: 'F102345', company_id: '1' },
+  { id: 'e2', name: 'Siti Aminah', job_title: 'Head Cook', department: 'Kitchen', code: 'F100120', company_id: '1' },
+  { id: 'e3', name: 'Rudi Hartono', job_title: 'Line Cook', department: 'Kitchen', code: 'F200560', company_id: '2' },
 ]
 
 /** GET /stock products. "Sate Matang" is short on stock on purpose to exercise 409 done_failed. */
 export const mockKitchenProducts = [
-  { product_id: 'p1', name: 'Nasi Goreng Spesial', uom: 'Portion', kind: 'manufacture', available_qty: 50, is_available: true },
-  { product_id: 'p2', name: 'Ayam Bakar', uom: 'Portion', kind: 'manufacture', available_qty: 30, is_available: true },
-  { product_id: 'p3', name: 'Sate Matang', uom: 'Portion', kind: 'manufacture', available_qty: 3, is_available: true },
-  { product_id: 'p4', name: 'Es Teh Manis', uom: 'Cup', kind: 'stock', available_qty: 100, is_available: true },
-  { product_id: 'p5', name: 'Rendang Daging', uom: 'Portion', kind: 'manufacture', available_qty: 0, is_available: false },
+  { product_id: 'p1', barcode: 'NASGOR-01', name: 'Nasi Goreng Spesial', uom: 'Portion', kind: 'manufacture', available_qty: 50, is_available: true },
+  { product_id: 'p2', barcode: 'AYAM-01', name: 'Ayam Bakar', uom: 'Portion', kind: 'manufacture', available_qty: 30, is_available: true },
+  { product_id: 'p3', barcode: 'SATE-01', name: 'Sate Matang', uom: 'Portion', kind: 'manufacture', available_qty: 3, is_available: true },
+  { product_id: 'p4', barcode: 'ESTEH-01', name: 'Es Teh Manis', uom: 'Cup', kind: 'stock', available_qty: 100, is_available: true },
+  { product_id: 'p5', barcode: 'RENDANG-01', name: 'Rendang Daging', uom: 'Portion', kind: 'manufacture', available_qty: 0, is_available: false },
 ]
 
 /** @type {Map<string, object>} sessions keyed by id */
@@ -260,12 +260,51 @@ export let productionIndex = new Map()
 let kitchenSessionCounter = 0
 let productionCounter = 0
 
+const INITIAL_ON_HAND = { p1: 4, p2: 2, p3: 0, p4: 100, p5: 0 }
+/** product_id -> finished-goods on hand; a done prep adds its qty. */
+export let mockOnHand = new Map(Object.entries(INITIAL_ON_HAND))
+
+// --- foom_wms_api (/api/wms/v1) ---
+
+export const MOCK_WMS_API_KEY = 'test-wms-key'
+
+export const mockWarehouses = [
+  { id: 1, code: 'KP', name: 'Kawah Putih Main', company_id: '1' },
+  { id: 2, code: 'KPK', name: 'Kawah Putih Kitchen', company_id: '1' },
+  { id: 3, code: 'CV', name: 'Ciwidey Valley Main', company_id: '2' },
+]
+
+export const mockLocations = [
+  { id: 11, warehouse_id: 1, name: 'Stock', complete_name: 'KP/Stock', barcode: 'KP-STOCK' },
+  { id: 12, warehouse_id: 1, name: 'Kitchen', complete_name: 'KP/Stock/Kitchen', barcode: 'KP-KITCHEN' },
+  { id: 21, warehouse_id: 2, name: 'Stock', complete_name: 'KPK/Stock', barcode: 'KPK-STOCK' },
+  { id: 31, warehouse_id: 3, name: 'Stock', complete_name: 'CV/Stock', barcode: 'CV-STOCK' },
+]
+
+// --- Store Connect KDM stock webhook ---
+
+export const MOCK_KDM_WEBHOOK_SECRET = 'test-kdm-secret'
+
+/** Stores keyed by "company:warehouse:location"; each lists the barcodes it sells. RENDANG-01 is unregistered on purpose. */
+export const mockStoreConnectStores = {
+  '1:1:12': { store_uuid: '6f1c2e8a-0b4d-4c1e-9a3f-2d7e5b8c9f10', barcodes: ['NASGOR-01', 'AYAM-01', 'SATE-01', 'ESTEH-01'] },
+  '1:1:11': { store_uuid: '0a9b8c7d-1e2f-4a3b-8c4d-5e6f7a8b9c0d', barcodes: ['NASGOR-01', 'AYAM-01', 'SATE-01', 'ESTEH-01'] },
+  '1:2:21': { store_uuid: '2b3c4d5e-6f7a-4b8c-9d0e-1f2a3b4c5d6e', barcodes: ['NASGOR-01', 'AYAM-01'] },
+}
+/** "storeKey|barcode" -> qty currently in Store Connect */
+export let storeConnectStock = new Map()
+/** Every accepted webhook body, newest last (for tests). */
+export let storeConnectRequests = []
+
 export function resetKitchenMockData() {
   kitchenSessions = new Map()
   openSessionByCompany = new Map()
   productionIndex = new Map()
   kitchenSessionCounter = 0
   productionCounter = 0
+  mockOnHand = new Map(Object.entries(INITIAL_ON_HAND))
+  storeConnectStock = new Map()
+  storeConnectRequests = []
 }
 
 export function findEmployeeByCode(code) {
@@ -334,24 +373,24 @@ function mockShift(id, name, code, from, to, overnight, hours, companyId, isDefa
 }
 
 export const mockShifts = [
-  mockShift(1, 'Pagi', 'P1', '08:00', '17:00', false, 9, 'c1', true, [
+  mockShift(1, 'Pagi', 'P1', '08:00', '17:00', false, 9, '1', true, [
     ['Check fridge & freezer temperature, log it', 'Chiller 0–4 °C, freezer ≤ −18 °C'],
     ['Prep base sauces and marinades'],
     ['Cook a batch of rice for lunch service'],
     ['Label and date every prep container'],
     ['Handover note for the Siang shift'],
   ]),
-  mockShift(2, 'Siang', 'S1', '14:00', '22:00', false, 8, 'c1', false, [
+  mockShift(2, 'Siang', 'S1', '14:00', '22:00', false, 8, '1', false, [
     ['Restock mise en place for dinner rush'],
     ['Check stock of fast-moving items (eggs, chicken, rice)'],
     ['Clean the grill and fryer between services'],
   ]),
-  mockShift(3, 'Malam', 'M1', '22:00', '06:00', true, 8, 'c1', false, [
+  mockShift(3, 'Malam', 'M1', '22:00', '06:00', true, 8, '1', false, [
     ['Deep-clean stations and equipment'],
     ['Count remaining stock and record scrap'],
     ['Turn off gas and equipment, lock the storage'],
   ]),
-  mockShift(4, 'Pagi', 'P1', '07:00', '15:00', false, 8, 'c2', true, [
+  mockShift(4, 'Pagi', 'P1', '07:00', '15:00', false, 8, '2', true, [
     ['Check fridge temperature, log it'],
     ['Prep the morning mise en place'],
   ]),
