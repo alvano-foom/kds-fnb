@@ -77,6 +77,7 @@ If a response shape ever needs to differ from the contract, update `docs/openapi
 
 ### Warehouse, location and Store Connect
 
+Settings asks for company, warehouse and location before any kitchen screen opens. The Order Board's stock check (`/api/kds/stock/check`) reads stock from that location only; Odoo rejects it without `location_id`. Warehouses and locations come from `foom_wms_api` (`/api/wms/v1`); after each prep (manufacturing order done) the product's on-hand at that location is pushed to Store Connect's KDM stock webhook. Failures land in the Error Log.
 Settings asks for company, warehouse and location before any kitchen screen opens. Warehouses and locations come from `foom_wms_api` (`/api/wms/v1`); after each prep (manufacturing order done) the product's on-hand at that location is pushed to Store Connect's KDM stock webhook. Failures land in the Error Log.
 
 Both upstreams need secrets, so the browser never calls them. It calls this app's own backend instead, which holds the secrets:

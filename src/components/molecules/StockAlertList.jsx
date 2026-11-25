@@ -19,7 +19,7 @@ export function StockAlertList({ alerts }) {
           key={alert.key}
           className={`flex flex-wrap items-baseline gap-x-2 rounded-lg border px-3 py-1.5 text-sm ${TONES[alert.level]}`}
         >
-          <span className="text-xs font-semibold uppercase tracking-wide">{LABELS[alert.scope ?? 'component'][alert.level]}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide">{LABELS[alert.scope][alert.level]}</span>
           <span>{alert.message}</span>
           <span className="text-xs opacity-75">{alert.orders.join(', ')}</span>
         </li>
