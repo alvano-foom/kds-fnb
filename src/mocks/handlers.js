@@ -426,9 +426,9 @@ export const handlers = [
     const body = await request.json().catch(() => null)
     if (!body?.company_id) return errorResponse(400, 'bad_request', 'company_id is required.')
     if (!Array.isArray(body.lines) || !body.lines.length) return errorResponse(400, 'bad_request', 'lines must be a non-empty array.')
-    if (body.lines.some((l) => !l?.barcode)) return errorResponse(400, 'bad_request', 'Every line needs a barcode.')
+    if (body.lines.some((l) => !l?.barcode && !l?.order_line_id)) return errorResponse(400, 'bad_request', 'Every line needs a barcode or order_line_id.')
     if (body.lines.some((l) => l.qty != null && !(Number(l.qty) > 0))) return errorResponse(400, 'bad_request', 'qty must be > 0.')
-    const result = checkStockBasket(body.lines, body.low_stock_portions ?? 5)
+    const result = checkStockBasket(body.lines, body.low_stock_portions ?? 5, { productAlerts: body.product_alerts === true })
     if (result.notFound) return errorResponse(404, 'not_found', `No product with barcode ${result.notFound}.`)
     return HttpResponse.json({
       company_id: body.company_id,

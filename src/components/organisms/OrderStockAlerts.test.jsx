@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { login } from '@/api/auth'
 import { useAuthStore } from '@/store/authStore'
 import { mockOrders, toOrderLineCard } from '@/mocks/fixtures'
+import { server } from '@/test/server'
 import { OrderStockAlerts } from './OrderStockAlerts'
 
 const allCards = mockOrders.flatMap((o) => o.lines.map((l) => toOrderLineCard(o, l)))
@@ -28,8 +29,25 @@ describe('OrderStockAlerts', () => {
       expect.stringMatching(/^Not enough.*Coffee Beans.*SO0233$/),
       expect.stringMatching(/^Not enough.*Iced Coffee Latte is short by 1.*SO0233$/),
       expect.stringMatching(/^Last portion.*Chicken runs out.*SO0232$/),
+      expect.stringMatching(/^Prep needed.*Chicken Noodle Soup: prepped stock runs out, prep 1 Units more.*SO0232$/),
       expect.stringMatching(/^Low stock.*Rice is running low.*SO0231$/),
     ])
+  })
+
+  it('sends existing order lines and asks Odoo for prep alerts', async () => {
+    const bodies = []
+    server.events.on('request:start', async ({ request }) => {
+      if (request.url.endsWith('/stock/check')) bodies.push(await request.clone().json())
+    })
+    renderAlerts(allCards)
+    await screen.findAllByRole('listitem')
+    server.events.removeAllListeners()
+    const soup = bodies.find((b) => b.lines.some((l) => l.barcode === 'CN001'))
+    expect(soup).toMatchObject({
+      stock_alerts: true,
+      product_alerts: true,
+      lines: [{ order_line_id: 'l3', barcode: 'CN001', qty: 1 }],
+    })
   })
 
   it('renders nothing when no order is pending', async () => {

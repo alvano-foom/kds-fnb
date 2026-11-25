@@ -128,13 +128,21 @@ const stockCheckCatalog = {
 
 const round = (n) => Math.round(n * 1000) / 1000
 
-/** Mirrors the real /stock/check: one level-1 ingredient per menu, finished stock used first. */
-export function checkStockBasket(lines, lowStockPortions = 5) {
+/**
+ * Mirrors the real /stock/check: one level-1 ingredient per menu, finished stock used first.
+ * order_line_id lines take their product from the mock order line; the mock has no
+ * reservations, so their whole qty is still open (Odoo subtracts what it reserved).
+ */
+export function checkStockBasket(lines, lowStockPortions = 5, { productAlerts = false } = {}) {
   const merged = new Map()
   for (const line of lines) {
-    const product = stockCheckCatalog[line.barcode]
-    if (!product) return { notFound: line.barcode }
-    merged.set(line.barcode, (merged.get(line.barcode) ?? 0) + (line.qty ?? 1))
+    const orderLine = line.order_line_id ? findLine(line.order_line_id)?.line : null
+    if (line.order_line_id && !orderLine) return { notFound: `order line ${line.order_line_id}` }
+    const barcode = orderLine ? orderLine.barcode : line.barcode
+    const product = stockCheckCatalog[barcode]
+    if (!product) return { notFound: barcode }
+    const qty = orderLine ? orderLine.qty : (line.qty ?? 1)
+    merged.set(barcode, (merged.get(barcode) ?? 0) + qty)
   }
 
   const usage = new Map()
@@ -172,6 +180,7 @@ export function checkStockBasket(lines, lowStockPortions = 5) {
             ? `${ingredient.name} runs out with this order.`
             : `${ingredient.name} is running low: ${remaining} ${ingredient.uom} left (enough for ${portionsLeft} more).`
       return {
+        scope: 'component',
         level, message, product_id: ingredient.product_id, barcode: '', name: ingredient.name, uom: ingredient.uom,
         available_qty: ingredient.available_qty, order_consumption: round(consumption), remaining_qty: remaining,
         min_qty: null, portions_left: portionsLeft,
@@ -179,9 +188,40 @@ export function checkStockBasket(lines, lowStockPortions = 5) {
       }
     })
     .filter(Boolean)
-    .sort((a, b) => order[a.level] - order[b.level])
 
-  return { ok: resultLines.every((l) => l.is_available), lines: resultLines, stock_alerts: stockAlerts }
+  // The dish's own stock ("prep more"), for plain stock items and manufactured dishes.
+  const productAlerts_ = !productAlerts ? [] : resultLines
+    .filter((l) => l.kind === 'stock' || l.kind === 'manufacture')
+    .map((l) => {
+      const made = l.kind === 'manufacture'
+      const canMake = made ? l.can_make : 0
+      const remaining = round(l.free_qty - l.requested_qty)
+      const left = Math.max(0, Math.floor(remaining + 1e-9))
+      const prep = made ? ` (ingredients enough for ${canMake} more)` : ''
+      let level, message
+      if (remaining < 0 && canMake < -remaining) {
+        level = 'insufficient'
+        message = `${l.name} is short by ${-remaining} ${l.uom} for this order${prep}.`
+      } else if (remaining < 0) {
+        level = 'out'
+        message = `${l.name}: prepped stock runs out, prep ${-remaining} ${l.uom} more${prep}.`
+      } else if (left === 0) {
+        level = 'out'
+        message = made ? `${l.name}: prepped stock runs out after this order, prep more${prep}.` : `${l.name} runs out after this order.`
+      } else if (left <= lowStockPortions) {
+        level = 'low'
+        message = made ? `${l.name}: only ${remaining} ${l.uom} prepped left, prep more${prep}.` : `${l.name} is running low: ${remaining} ${l.uom} left.`
+      } else return null
+      return {
+        scope: 'product', level, message, product_id: l.product_id, barcode: l.barcode, name: l.name, uom: l.uom,
+        available_qty: l.free_qty, order_consumption: l.requested_qty, remaining_qty: remaining, min_qty: null,
+        portions_left: left, can_make: made ? canMake : null, used_by: [],
+      }
+    })
+    .filter(Boolean)
+
+  const alerts = [...stockAlerts, ...productAlerts_].sort((a, b) => order[a.level] - order[b.level])
+  return { ok: resultLines.every((l) => l.is_available), lines: resultLines, stock_alerts: alerts }
 }
 
 export function findLine(lineId) {
