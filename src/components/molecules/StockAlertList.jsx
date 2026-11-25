@@ -4,7 +4,11 @@ const TONES = {
   low: 'border-amber-200 bg-amber-50 text-amber-800',
 }
 
-const LABELS = { insufficient: 'Not enough', out: 'Last portion', low: 'Low stock' }
+const LABELS = {
+  component: { insufficient: 'Not enough', out: 'Last portion', low: 'Low stock' },
+  // The dish's own (prepped) stock: "out" means the kitchen has to prep more.
+  product: { insufficient: 'Not enough', out: 'Prep needed', low: 'Prep soon' },
+}
 
 /** @param {{alerts: import('@/lib/stockCheck').BoardStockAlert[]}} props */
 export function StockAlertList({ alerts }) {
@@ -15,7 +19,7 @@ export function StockAlertList({ alerts }) {
           key={alert.key}
           className={`flex flex-wrap items-baseline gap-x-2 rounded-lg border px-3 py-1.5 text-sm ${TONES[alert.level]}`}
         >
-          <span className="text-xs font-semibold uppercase tracking-wide">{LABELS[alert.level]}</span>
+          <span className="text-xs font-semibold uppercase tracking-wide">{LABELS[alert.scope ?? 'component'][alert.level]}</span>
           <span>{alert.message}</span>
           <span className="text-xs opacity-75">{alert.orders.join(', ')}</span>
         </li>
