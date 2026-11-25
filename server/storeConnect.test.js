@@ -1,15 +1,17 @@
 import { http, HttpResponse } from 'msw'
 import { describe, expect, it } from 'vitest'
 import { server } from '@/test/server'
-import { storeConnectRequests } from '@/mocks/fixtures'
-import { pushKdmStock } from './storeConnect'
+import { MOCK_KDM_WEBHOOK_SECRET, storeConnectRequests } from '@/mocks/fixtures'
+import { pushKdmStock } from './storeConnect.js'
+
+const CONFIG = { url: 'http://store-connect.test', secret: MOCK_KDM_WEBHOOK_SECRET }
 
 const STORE = { companyId: '1', warehouseId: '1', locationId: '12' }
 const NO_WAIT = { retryDelaysMs: [0, 0] }
 
 describe('pushKdmStock', () => {
   it('sends integer ids and whole, non-negative qty, and returns the response with api_id', async () => {
-    const res = await pushKdmStock({ ...STORE, items: [{ barcode: ' NASGOR-01 ', qty: 6.8 }, { barcode: 'AYAM-01', qty: -2 }] })
+    const res = await pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: ' NASGOR-01 ', qty: 6.8 }, { barcode: 'AYAM-01', qty: -2 }] })
 
     expect(storeConnectRequests.at(-1)).toEqual({
       company_id: 1,
@@ -22,8 +24,8 @@ describe('pushKdmStock', () => {
   })
 
   it('replaces stock: resending the same qty reports no difference', async () => {
-    await pushKdmStock({ ...STORE, items: [{ barcode: 'AYAM-01', qty: 3 }] })
-    const again = await pushKdmStock({ ...STORE, items: [{ barcode: 'AYAM-01', qty: 3 }] })
+    await pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'AYAM-01', qty: 3 }] })
+    const again = await pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'AYAM-01', qty: 3 }] })
     expect(again.data.items[0].difference).toBe(0)
   })
 
@@ -35,7 +37,7 @@ describe('pushKdmStock', () => {
         return HttpResponse.json({ api_id: 'abc123', status: 404, message: 'Barcode not found: X' }, { status: 404 })
       }),
     )
-    await expect(pushKdmStock({ ...STORE, items: [{ barcode: 'X', qty: 1 }] }, NO_WAIT)).rejects.toMatchObject({
+    await expect(pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'X', qty: 1 }] }, NO_WAIT)).rejects.toMatchObject({
       status: 404,
       apiId: 'abc123',
       message: 'Barcode not found: X',
@@ -51,14 +53,14 @@ describe('pushKdmStock', () => {
         return calls < 3 ? HttpResponse.json({ api_id: 'x', status: 500, message: 'Internal Server Error' }, { status: 500 }) : undefined
       }),
     )
-    const res = await pushKdmStock({ ...STORE, items: [{ barcode: 'SATE-01', qty: 2 }] }, NO_WAIT)
+    const res = await pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'SATE-01', qty: 2 }] }, NO_WAIT)
     expect(calls).toBe(3)
     expect(res.message).toBe('Stock updated')
   })
 
   it('rejects a bad secret with INVALID_WEBHOOK_SECRET and an unknown store with Store not found', async () => {
     await expect(
-      pushKdmStock({ companyId: '1', warehouseId: '3', locationId: '31', items: [{ barcode: 'AYAM-01', qty: 1 }] }),
+      pushKdmStock(CONFIG, { companyId: '1', warehouseId: '3', locationId: '31', items: [{ barcode: 'AYAM-01', qty: 1 }] }),
     ).rejects.toMatchObject({ status: 404, message: 'Store not found' })
 
     server.use(
@@ -66,14 +68,14 @@ describe('pushKdmStock', () => {
         HttpResponse.json({ api_id: 'y', status: 401, message: 'INVALID_WEBHOOK_SECRET' }, { status: 401 }),
       ),
     )
-    await expect(pushKdmStock({ ...STORE, items: [{ barcode: 'AYAM-01', qty: 1 }] }, NO_WAIT)).rejects.toMatchObject({
+    await expect(pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'AYAM-01', qty: 1 }] }, NO_WAIT)).rejects.toMatchObject({
       status: 401,
       message: 'INVALID_WEBHOOK_SECRET',
     })
   })
 
   it('refuses non-numeric ids before calling Store Connect', async () => {
-    await expect(pushKdmStock({ ...STORE, companyId: 'c1', items: [{ barcode: 'AYAM-01', qty: 1 }] })).rejects.toThrow(
+    await expect(pushKdmStock(CONFIG, { ...STORE, companyId: 'c1', items: [{ barcode: 'AYAM-01', qty: 1 }] })).rejects.toThrow(
       /company_id must be a positive integer/,
     )
     expect(storeConnectRequests).toHaveLength(0)
@@ -91,8 +93,8 @@ describe('pushKdmStock', () => {
       }),
     )
     await Promise.all([
-      pushKdmStock({ ...STORE, items: [{ barcode: 'AYAM-01', qty: 1 }] }),
-      pushKdmStock({ ...STORE, items: [{ barcode: 'AYAM-01', qty: 2 }] }),
+      pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'AYAM-01', qty: 1 }] }),
+      pushKdmStock(CONFIG, { ...STORE, items: [{ barcode: 'AYAM-01', qty: 2 }] }),
     ])
     expect(order).toEqual(['start 1', 'end 1', 'start 2', 'end 2'])
   })

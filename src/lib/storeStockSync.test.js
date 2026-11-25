@@ -34,8 +34,8 @@ describe('syncStoreStock', () => {
     expect(result).toBeNull()
     expect(useErrorLogStore.getState().entries[0]).toMatchObject({
       category: 'store-connect',
-      message: expect.stringMatching(/^Store Connect stock not updated for Rendang Daging \(api_id \w+\)\.$/),
-      detail: 'Barcode not found: RENDANG-01',
+      message: 'Store Connect stock not updated for Rendang Daging.',
+      detail: expect.stringMatching(/^Store Connect: Barcode not found: RENDANG-01 \(api_id \w+\)$/),
     })
   })
 

@@ -35,21 +35,24 @@ async function tryRefresh() {
   return refreshPromise
 }
 
+/** Same-origin routes served by this app's own backend (server/handlers.js). */
+export const SERVER_BASE_URL = '/api'
+
 /**
  * @param {string} path            e.g. '/order-lines'
  * @param {RequestInit} [options]
- * @param {{retryOn401?: boolean}} [config]
+ * @param {{retryOn401?: boolean, baseUrl?: string}} [config]
  */
-export async function apiFetch(path, options = {}, { retryOn401 = true } = {}) {
+export async function apiFetch(path, options = {}, { retryOn401 = true, baseUrl = BASE_URL } = {}) {
   const { accessToken } = useAuthStore.getState()
   const headers = { 'Content-Type': 'application/json', ...options.headers }
   if (accessToken) headers.Authorization = `Bearer ${accessToken}`
 
-  const res = await fetch(`${BASE_URL}${path}`, { ...options, headers })
+  const res = await fetch(`${baseUrl}${path}`, { ...options, headers })
 
   if (res.status === 401 && retryOn401) {
     const refreshed = await tryRefresh()
-    if (refreshed) return apiFetch(path, options, { retryOn401: false })
+    if (refreshed) return apiFetch(path, options, { retryOn401: false, baseUrl })
     useAuthStore.getState().signOut()
     throw new ApiError(401, 'unauthorized', 'Session expired')
   }
