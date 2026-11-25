@@ -20,11 +20,15 @@ export class WmsError extends Error {
 }
 
 async function wmsGet(path, companyId) {
+  const apiKey = import.meta.env.VITE_WMS_API_KEY
+  if (!apiKey) {
+    throw new WmsError(0, 'missing_api_key', 'VITE_WMS_API_KEY is not set. Add it to .env.local (or the host env) and restart.')
+  }
   let res
   try {
     res = await fetch(`${wmsBase()}${path}`, {
       headers: {
-        Authorization: `Bearer ${import.meta.env.VITE_WMS_API_KEY ?? ''}`,
+        Authorization: `Bearer ${apiKey}`,
         'X-Company-Id': String(companyId),
       },
     })
